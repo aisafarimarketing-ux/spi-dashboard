@@ -130,9 +130,10 @@ export function IntelligencePanel() {
     Record<string, string>
   >({})
   const [examplesOpen, setExamplesOpen] = React.useState(false)
-  // Brief pending state to give Analyze/Apply a deliberate, trustworthy beat.
+  // Brief pending state to give Analyze/Apply/Review a deliberate, trustworthy beat.
   const [analyzing, setAnalyzing] = React.useState(false)
   const [applyingId, setApplyingId] = React.useState<string | null>(null)
+  const [reviewingId, setReviewingId] = React.useState<string | null>(null)
 
   // Static proposals (shipped with the cockpit)
   const [staticDecisions, setStaticDecisions] = React.useState<
@@ -214,7 +215,12 @@ export function IntelligencePanel() {
   }
 
   const reviewParsed = (action: ParsedAction) => {
-    if (action.reviewHint) openDrawer(action.reviewHint)
+    if (!action.reviewHint || reviewingId) return
+    setReviewingId(action.id)
+    window.setTimeout(() => {
+      openDrawer(action.reviewHint!)
+      setReviewingId(null)
+    }, 220)
   }
 
   const setStatic = (id: string, dec: StaticDecision) => {
@@ -389,6 +395,7 @@ export function IntelligencePanel() {
                       action={p}
                       decision={parsedDecisions[p.id] ?? "pending"}
                       applying={applyingId === p.id}
+                      reviewing={reviewingId === p.id}
                       onApply={() => applyParsed(p)}
                       onDismiss={() => dismissParsed(p.id)}
                       onReview={() => reviewParsed(p)}
@@ -693,6 +700,7 @@ function ParsedActionCard({
   action,
   decision,
   applying,
+  reviewing,
   onApply,
   onDismiss,
   onReview,
@@ -701,6 +709,7 @@ function ParsedActionCard({
   action: ParsedAction
   decision: ParsedDecision
   applying: boolean
+  reviewing: boolean
   onApply: () => void
   onDismiss: () => void
   onReview: () => void
@@ -717,7 +726,13 @@ function ParsedActionCard({
 
   if (isApplied) {
     return (
-      <article className="border-border/70 bg-[color-mix(in_oklch,var(--success)_4%,var(--card))] flex items-center gap-2.5 rounded-lg border px-3 py-2">
+      <article
+        className={cn(
+          "border-border/70 bg-[color-mix(in_oklch,var(--success)_4%,var(--card))] flex items-center gap-2.5 rounded-lg border px-3 py-2",
+          // Calm transition into the applied state — fade + small lift, ease-out.
+          "animate-in fade-in-0 slide-in-from-bottom-1 duration-300 ease-out"
+        )}
+      >
         <div className="bg-[color-mix(in_oklch,var(--success)_30%,transparent)] grid size-6 shrink-0 place-items-center rounded-md">
           <Check className="text-[color-mix(in_oklch,var(--success)_60%,var(--ink))] size-3.5" />
         </div>
@@ -846,10 +861,19 @@ function ParsedActionCard({
                   size="xs"
                   variant="outline"
                   onClick={onReview}
-                  disabled={applying}
+                  disabled={applying || reviewing}
                 >
-                  <Eye />
-                  Review
+                  {reviewing ? (
+                    <>
+                      <Loader2 className="animate-spin" />
+                      Opening
+                    </>
+                  ) : (
+                    <>
+                      <Eye />
+                      Review
+                    </>
+                  )}
                 </Button>
               )}
               {!reviewOnly && (
@@ -891,7 +915,7 @@ function AppliedReceipt({
 
   const impact = action.estimatedImpactUSD ?? 0
   return (
-    <div className="border-border/70 bg-card hover:bg-surface-2/40 group flex items-center gap-2 rounded-md border px-2.5 py-1.5 transition-colors">
+    <div className="border-border/70 bg-card hover:bg-surface-2/40 group animate-in fade-in-0 slide-in-from-bottom-1 duration-300 ease-out flex items-center gap-2 rounded-md border px-2.5 py-1.5 transition-colors">
       <div className="bg-[color-mix(in_oklch,var(--success)_25%,transparent)] grid size-5 shrink-0 place-items-center rounded">
         <Check className="text-[color-mix(in_oklch,var(--success)_60%,var(--ink))] size-3" />
       </div>

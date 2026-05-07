@@ -261,6 +261,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
           detail: `${g.type} · ${g.nationality}`,
         })
       }
+      const nextV = versions.length + 1
       commit(
         {
           ...quote,
@@ -271,11 +272,11 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
       )
       toast({
         title: exists ? "Guest updated" : "Guest added",
-        description: g.name,
+        description: `${g.name} · v${nextV} saved`,
         tone: "success",
       })
     },
-    [commit, observe, pushActivity, quote, toast]
+    [commit, observe, pushActivity, quote, toast, versions.length]
   )
 
   const removeGuest = React.useCallback(
@@ -296,6 +297,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
           title: `${target.name} removed`,
         })
       }
+      const nextV = versions.length + 1
       commit(
         {
           ...quote,
@@ -308,12 +310,12 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
       if (target) {
         toast({
           title: "Guest removed",
-          description: target.name,
+          description: `${target.name} · v${nextV} saved`,
           tone: "info",
         })
       }
     },
-    [commit, observe, pushActivity, quote, toast]
+    [commit, observe, pushActivity, quote, toast, versions.length]
   )
 
   const upsertRoom = React.useCallback(
@@ -345,23 +347,29 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
         title: exists ? "Rooming updated" : "Room added",
         detail: room.arrangement,
       })
+      const nextV = versions.length + 1
       commit({ ...quote, rooms }, note)
       toast({
         title: exists ? "Rooming updated" : "Room added",
-        description: room.arrangement,
+        description: `${room.arrangement} · v${nextV} saved`,
         tone: "success",
       })
     },
-    [commit, observe, pushActivity, quote, toast]
+    [commit, observe, pushActivity, quote, toast, versions.length]
   )
 
   const removeRoom = React.useCallback(
     (id: string, note: string) => {
       const rooms = quote.rooms.filter((r) => r.id !== id)
+      const nextV = versions.length + 1
       commit({ ...quote, rooms }, note)
-      toast({ title: "Room removed", tone: "info" })
+      toast({
+        title: "Room removed",
+        description: `v${nextV} saved`,
+        tone: "info",
+      })
     },
-    [commit, quote, toast]
+    [commit, quote, toast, versions.length]
   )
 
   const applyChanges = React.useCallback(
@@ -415,10 +423,15 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      const nextV = versions.length + 1
       commit({ ...quote, ...partial }, note)
-      toast({ title: "Changes applied", description: note, tone: "success" })
+      toast({
+        title: "Changes applied",
+        description: `${note} · v${nextV} saved`,
+        tone: "success",
+      })
     },
-    [commit, observe, pushActivity, quote, toast]
+    [commit, observe, pushActivity, quote, toast, versions.length]
   )
 
   const applyParsedQuote = React.useCallback(
@@ -429,14 +442,15 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
         title: "Proposal applied",
         detail: note,
       })
+      const nextV = versions.length + 1
       commit(next, note, "spi")
       toast({
         title: "Proposal applied",
-        description: note,
+        description: `${note} · v${nextV} saved`,
         tone: "success",
       })
     },
-    [commit, observe, pushActivity, toast]
+    [commit, observe, pushActivity, toast, versions.length]
   )
 
   const setMemoryScope = React.useCallback((scope: MemoryScope) => {
