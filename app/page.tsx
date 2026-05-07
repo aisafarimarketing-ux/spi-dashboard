@@ -1,6 +1,7 @@
 import { CommandPalette } from "@/components/cockpit/command-palette"
 import { DrawerRoot } from "@/components/cockpit/drawers/drawer-root"
 import { IntelligencePanel } from "@/components/cockpit/intelligence-panel"
+import { PrintableQuote } from "@/components/cockpit/printable-quote"
 import { ItineraryTimeline } from "@/components/cockpit/itinerary"
 import { PricingMetrics } from "@/components/cockpit/pricing-metrics"
 import { QuoteHeader } from "@/components/cockpit/quote-header"
@@ -40,6 +41,7 @@ export default function CockpitPage() {
         </div>
         <DrawerRoot />
         <CommandPalette />
+        <PrintableQuote />
       </QuoteProvider>
     </div>
   )

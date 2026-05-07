@@ -36,6 +36,7 @@ import { useToast } from "@/components/ui/toast"
 import { aggregateByCategory } from "@/lib/pricing-engine"
 import { cn } from "@/lib/utils"
 import type { Quote, QuoteTotals } from "@/lib/types"
+import { printQuote } from "./printable-quote"
 import { useQuote } from "./quote-provider"
 
 // ─── Formatting helpers ─────────────────────────────────────────────────────
@@ -883,8 +884,20 @@ export function ReviewAndSend({
             <Button
               variant="outline"
               size="sm"
-              disabled
-              title="PDF export ships next"
+              onClick={() => {
+                pushActivity({
+                  kind: "export",
+                  title: "Export prepared",
+                  detail: quote.reference,
+                })
+                toast({
+                  title: "Opening print dialog",
+                  description: "Choose “Save as PDF” to download.",
+                  tone: "info",
+                })
+                printQuote()
+              }}
+              title="Opens the browser print dialog — choose Save as PDF"
             >
               <Download />
               Export PDF

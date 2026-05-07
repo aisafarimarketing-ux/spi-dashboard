@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/toast"
 import { cn } from "@/lib/utils"
+import { printQuote } from "./printable-quote"
 import { useQuote } from "./quote-provider"
 
 type Phase = "preparing" | "ready"
@@ -27,6 +28,7 @@ const PREP_STEPS = [
   "Loading client-facing layout",
   "Embedding itinerary and inclusions",
   "Hiding internal margin and per-line VAT",
+  "Verifying pricing against engine",
 ] as const
 
 export function ExportModal({
@@ -75,7 +77,7 @@ export function ExportModal({
           })
           toast({
             title: "Export prepared",
-            description: "Layout cached — PDF generation ships next.",
+            description: "Choose “Save as PDF” in the print dialog to download.",
             tone: "info",
           })
         }
@@ -123,7 +125,7 @@ export function ExportModal({
           <p className="text-muted-foreground mt-1 text-[12px] leading-snug">
             {phase === "preparing"
               ? "Gathering the client-facing layout — internal pricing stays hidden."
-              : "Layout cached. PDF generation ships in the next phase — for now, share the on-screen review."}
+              : "Ready to download. The PDF preserves itinerary, inclusions, and total — internal margin and VAT stay hidden."}
           </p>
 
           <ol className="border-border/60 bg-surface-2/40 mt-4 space-y-1.5 rounded-md border px-3 py-2.5">
@@ -165,15 +167,12 @@ export function ExportModal({
               <FileText className="text-[color-mix(in_oklch,var(--gold)_55%,var(--ink))] mt-0.5 size-3.5 shrink-0" />
               <div className="text-[11.5px] leading-snug">
                 <div className="text-foreground/85 font-medium">
-                  PDF export — coming next
+                  Reference {quote.reference}
                 </div>
                 <p className="text-muted-foreground mt-0.5">
-                  Layout is cached against {quote.reference}. The next release
-                  generates the actual PDF without recalculating —
-                  {" "}
                   {totals.warnings.length === 0
-                    ? "no flags to resolve."
-                    : `${totals.warnings.length} flag${totals.warnings.length === 1 ? "" : "s"} resolved at prep time.`}
+                    ? "No validator flags. Print dialog will offer “Save as PDF” — pick that to produce a file."
+                    : `${totals.warnings.length} validator flag${totals.warnings.length === 1 ? "" : "s"} resolved at prep time. Print dialog will offer “Save as PDF” — pick that to produce a file.`}
                 </p>
               </div>
             </div>
@@ -190,8 +189,12 @@ export function ExportModal({
           </Button>
           <Button
             size="sm"
-            disabled
-            title="PDF export ships in the next release"
+            disabled={phase !== "ready"}
+            onClick={() => {
+              handleOpenChange(false)
+              printQuote()
+            }}
+            title="Opens the browser print dialog — choose Save as PDF"
           >
             <Download />
             Download PDF
