@@ -15,10 +15,12 @@ import { cn } from "@/lib/utils"
 import { ITINERARY, QUOTE } from "@/lib/mock"
 
 const regionTone: Record<string, string> = {
-  Nairobi: "text-[color-mix(in_oklch,var(--info)_55%,var(--ink))]",
-  "Maasai Mara": "text-[color-mix(in_oklch,var(--gold)_55%,var(--ink))]",
-  Serengeti: "text-[color-mix(in_oklch,var(--warning)_55%,var(--ink))]",
-  Ngorongoro: "text-[color-mix(in_oklch,var(--success)_55%,var(--ink))]",
+  Arusha: "text-[color-mix(in_oklch,var(--info)_55%,var(--ink))]",
+  Tarangire: "text-[color-mix(in_oklch,var(--gold)_55%,var(--ink))]",
+  "Lake Manyara": "text-[color-mix(in_oklch,var(--success)_55%,var(--ink))]",
+  Ngorongoro: "text-[color-mix(in_oklch,var(--warning)_55%,var(--ink))]",
+  Serengeti: "text-[color-mix(in_oklch,var(--gold)_55%,var(--ink))]",
+  Zanzibar: "text-[color-mix(in_oklch,var(--info)_55%,var(--ink))]",
   Transit: "text-muted-foreground",
 }
 

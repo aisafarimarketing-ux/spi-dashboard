@@ -1,4 +1,4 @@
-import { BedDouble, Plus, UsersRound } from "lucide-react"
+import { BedDouble, Plus, ShieldCheck, UsersRound } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -9,14 +9,63 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
 import { GUESTS, ROOMS } from "@/lib/mock"
+import type { Confidence, RoomingPolicySource } from "@/lib/types"
 
-const roomGlyph: Record<string, string> = {
-  King: "⬛",
+const arrangementLabel: Record<string, string> = {
+  Single: "Single",
+  Double: "Double",
+  Twin: "Twin",
+  Triple: "Triple",
+  Quad: "Quad",
+  FamilyRoom: "Family room",
+  Interconnecting: "Interconnecting",
+  TwoRoomsReplacingFamily: "2 rooms · family override",
+  ExtraBed: "+ extra bed",
+  ChildSharing: "Child sharing",
+  CustomCampApproved: "Custom · camp-approved",
+}
+
+const arrangementGlyph: Record<string, string> = {
+  Single: "▤",
+  Double: "⬛",
   Twin: "▦",
   Triple: "▣",
-  Family: "▤",
+  Quad: "▩",
+  FamilyRoom: "▤",
+  Interconnecting: "▥",
+  TwoRoomsReplacingFamily: "▥",
+  ExtraBed: "▤+",
+  ChildSharing: "▦",
+  CustomCampApproved: "◧",
 }
+
+const sourceLabel: Record<RoomingPolicySource, string> = {
+  "camp-policy": "Camp policy",
+  "operator-override": "Operator override",
+  negotiated: "Negotiated",
+  "ai-suggested": "SPI suggested",
+}
+
+const confidenceTone: Record<Confidence, string> = {
+  high: "bg-[color-mix(in_oklch,var(--success)_55%,transparent)]",
+  medium: "bg-[color-mix(in_oklch,var(--warning)_55%,transparent)]",
+  low: "bg-[color-mix(in_oklch,var(--destructive)_55%,transparent)]",
+}
+
+const categoryLabel = {
+  Local: "Local",
+  EastAfricanResident: "EA Resident",
+  International: "Intl",
+} as const
+
+const formatUSD = (n: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(n)
 
 export function RoomingOverview() {
   return (
@@ -26,13 +75,13 @@ export function RoomingOverview() {
           <UsersRound className="text-muted-foreground size-3.5" />
           <CardTitle>Rooming & guests</CardTitle>
           <Badge variant="muted" size="sm" className="font-mono">
-            {ROOMS.length} rooms · {GUESTS.length} pax
+            {ROOMS.length} arrangements · {GUESTS.length} pax
           </Badge>
         </div>
         <CardAction>
           <Button variant="ghost" size="xs">
             <Plus />
-            Room
+            Arrangement
           </Button>
         </CardAction>
       </CardHeader>
@@ -43,33 +92,77 @@ export function RoomingOverview() {
             .map((id) => GUESTS.find((g) => g.id === id))
             .filter((g): g is (typeof GUESTS)[number] => Boolean(g))
 
+          const impactLabel =
+            room.priceImpact.direction === "neutral"
+              ? "no price impact"
+              : `${room.priceImpact.direction === "save" ? "−" : "+"}${formatUSD(
+                  room.priceImpact.amountUSD
+                )}`
+
           return (
             <div
               key={room.id}
               className="border-border/70 bg-surface/60 hover:border-border rounded-lg border p-2.5 transition-colors"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="bg-surface-2 grid size-6 place-items-center rounded">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2">
+                  <div className="bg-surface-2 grid size-6 shrink-0 place-items-center rounded">
                     <BedDouble className="text-foreground/70 size-3.5" />
                   </div>
                   <div>
                     <div className="text-foreground text-[12.5px] font-medium leading-tight">
-                      Room {room.id.replace("r", "")} · {room.type}
+                      Room {room.id.replace("r", "")} ·{" "}
+                      {arrangementLabel[room.arrangement] ?? room.arrangement}
                     </div>
-                    <div className="text-muted-foreground text-[11px] leading-tight">
+                    <div className="text-muted-foreground mt-0.5 text-[11px] leading-tight">
                       {room.notes ?? "No special requests"}
                     </div>
                   </div>
                 </div>
                 <span
                   aria-hidden
-                  className="text-muted-foreground/60 font-mono text-[10.5px]"
+                  className="text-muted-foreground/60 font-mono text-[11px]"
                 >
-                  {roomGlyph[room.type]}
+                  {arrangementGlyph[room.arrangement] ?? ""}
                 </span>
               </div>
 
+              {/* Policy + impact row */}
+              <div className="mt-2 flex items-center gap-2">
+                <Badge variant="outline" size="sm" className="font-normal">
+                  <ShieldCheck className="size-3" />
+                  {sourceLabel[room.policy.source]}
+                </Badge>
+                <span
+                  className="border-border/60 bg-surface-2/60 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10.5px]"
+                  title={`Confidence: ${room.policy.confidence}`}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "size-1.5 rounded-full",
+                      confidenceTone[room.policy.confidence]
+                    )}
+                  />
+                  <span className="text-muted-foreground/90 capitalize">
+                    {room.policy.confidence}
+                  </span>
+                </span>
+                <span
+                  className={cn(
+                    "ml-auto font-mono text-[10.5px]",
+                    room.priceImpact.direction === "save"
+                      ? "text-[color-mix(in_oklch,var(--success)_55%,var(--ink))]"
+                      : room.priceImpact.direction === "add"
+                        ? "text-[color-mix(in_oklch,var(--destructive)_55%,var(--ink))]"
+                        : "text-muted-foreground"
+                  )}
+                >
+                  {impactLabel}
+                </span>
+              </div>
+
+              {/* Occupants */}
               <div className="mt-2 flex flex-wrap gap-1">
                 {guests.map((g) => {
                   const initials = g.name
@@ -84,10 +177,17 @@ export function RoomingOverview() {
                       <span className="bg-[color-mix(in_oklch,var(--gold)_22%,var(--surface-2))] text-[color-mix(in_oklch,var(--gold)_50%,var(--ink))] grid size-4 place-items-center rounded-full text-[9px] font-semibold">
                         {initials}
                       </span>
-                      <span className="text-foreground/85">{g.name.split(" ")[0]}</span>
-                      <span className="text-muted-foreground/80 font-mono text-[10px]">
-                        {g.age}
+                      <span className="text-foreground/85">
+                        {g.name.split(" ")[0]}
                       </span>
+                      {g.age !== undefined && (
+                        <span className="text-muted-foreground/80 font-mono text-[10px]">
+                          {g.age}
+                        </span>
+                      )}
+                      <Badge size="sm" variant="muted" className="font-medium">
+                        {categoryLabel[g.pricingCategory]}
+                      </Badge>
                       {g.dietary && (
                         <Badge size="sm" variant="muted" className="font-medium">
                           {g.dietary}
@@ -101,7 +201,7 @@ export function RoomingOverview() {
           )
         })}
 
-        {/* Nationality logic */}
+        {/* Per-guest pricing logic */}
         <div className="border-border/60 mt-1 flex items-start gap-2 rounded-lg border border-dashed p-2.5">
           <span
             aria-hidden
@@ -109,12 +209,14 @@ export function RoomingOverview() {
           />
           <div className="text-[11.5px] leading-snug">
             <div className="text-foreground/85 font-medium">
-              Nationality logic — Non-Resident
+              Per-guest pricing categories
             </div>
             <p className="text-muted-foreground mt-0.5">
-              All 4 guests on GBR passports. Non-resident park &amp; conservancy
-              fees applied. Theo (11) qualifies for child band at Serengeti — saving
-              <span className="text-foreground/85 font-medium"> $120</span> auto-applied.
+              Each guest is priced individually. Priya's Kenya work permit places
+              her in <span className="text-foreground/85 font-medium">EA
+              Resident</span>; the rest of the family is{" "}
+              <span className="text-foreground/85 font-medium">International</span>.
+              Engine never assumes shared nationality.
             </p>
           </div>
         </div>
