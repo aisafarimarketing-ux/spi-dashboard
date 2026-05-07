@@ -43,6 +43,13 @@ interface QuoteContextValue {
    */
   applyChanges: (partial: Partial<Quote>, note: string) => void
 
+  /**
+   * Apply a quote derived by an SPI parsed action. Snapshots a version
+   * tagged via='spi' so the History tab can mark which edits came from the
+   * intelligence layer.
+   */
+  applyParsedQuote: (next: Quote, note: string) => void
+
   /** Pure preview helper used by drawer footers. */
   preview: (next: Quote) => QuoteTotals
 }
@@ -75,7 +82,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
 
   /** Snapshot the prior totals into a new version, then apply `next`. */
   const commit = React.useCallback(
-    (next: Quote, note: string) => {
+    (next: Quote, note: string, via: "spi" | "manual" = "manual") => {
       const prevTotal = quoteTotals(quote).totalSell
       const nextTotal = quoteTotals(next).totalSell
       const delta = Math.round(nextTotal - prevTotal)
@@ -94,6 +101,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
           authoredAt: "just now",
           delta,
           note,
+          via,
         }
         return [newest, ...promoted]
       })
@@ -177,6 +185,13 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
     [commit, quote]
   )
 
+  const applyParsedQuote = React.useCallback(
+    (next: Quote, note: string) => {
+      commit(next, note, "spi")
+    },
+    [commit]
+  )
+
   const value: QuoteContextValue = {
     quote,
     totals,
@@ -189,6 +204,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
     upsertRoom,
     removeRoom,
     applyChanges,
+    applyParsedQuote,
     preview,
   }
 

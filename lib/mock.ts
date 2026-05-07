@@ -587,6 +587,8 @@ export type VersionEntry = {
   authoredAt: string
   delta: number
   note: string
+  /** Which surface produced the version. SPI-parsed actions are tagged. */
+  via?: "spi" | "manual"
 }
 
 export const VERSIONS: VersionEntry[] = [
@@ -597,6 +599,7 @@ export const VERSIONS: VersionEntry[] = [
     authoredAt: "12 min ago",
     delta: -640,
     note: "Replaced Lemala Kuria Hills with Sayari for Lamai night, operator override applied.",
+    via: "manual",
   },
   {
     id: "v2",
@@ -605,6 +608,7 @@ export const VERSIONS: VersionEntry[] = [
     authoredAt: "yesterday",
     delta: 1240,
     note: "Upgraded Mpingo Ridge from standard to ridge-view tent.",
+    via: "manual",
   },
   {
     id: "v1",
@@ -613,5 +617,6 @@ export const VERSIONS: VersionEntry[] = [
     authoredAt: "3 days ago",
     delta: 0,
     note: "Initial Tanzania classic itinerary shared with client.",
+    via: "manual",
   },
 ]
