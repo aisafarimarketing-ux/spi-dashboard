@@ -1,4 +1,13 @@
-import { BedDouble, Plus, ShieldCheck, UsersRound } from "lucide-react"
+"use client"
+
+import {
+  BedDouble,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  UserPlus,
+  UsersRound,
+} from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,8 +19,8 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import { GUESTS, ROOMS } from "@/lib/mock"
 import type { Confidence, RoomingPolicySource } from "@/lib/types"
+import { useQuote } from "./quote-provider"
 
 const arrangementLabel: Record<string, string> = {
   Single: "Single",
@@ -68,6 +77,9 @@ const formatUSD = (n: number) =>
   }).format(n)
 
 export function RoomingOverview() {
+  const { quote, openDrawer } = useQuote()
+  const { guests, rooms } = quote
+
   return (
     <Card className="flex h-full flex-col">
       <CardHeader>
@@ -75,11 +87,23 @@ export function RoomingOverview() {
           <UsersRound className="text-muted-foreground size-3.5" />
           <CardTitle>Rooming & guests</CardTitle>
           <Badge variant="muted" size="sm" className="font-mono">
-            {ROOMS.length} arrangements · {GUESTS.length} pax
+            {rooms.length} arrangements · {guests.length} pax
           </Badge>
         </div>
         <CardAction>
-          <Button variant="ghost" size="xs">
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => openDrawer({ type: "guest" })}
+          >
+            <UserPlus />
+            Guest
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => openDrawer({ type: "rooming" })}
+          >
             <Plus />
             Arrangement
           </Button>
@@ -87,10 +111,10 @@ export function RoomingOverview() {
       </CardHeader>
 
       <CardContent className="flex flex-col gap-2.5 pt-1">
-        {ROOMS.map((room) => {
-          const guests = room.occupants
-            .map((id) => GUESTS.find((g) => g.id === id))
-            .filter((g): g is (typeof GUESTS)[number] => Boolean(g))
+        {rooms.map((room) => {
+          const occupants = room.occupants
+            .map((id) => guests.find((g) => g.id === id))
+            .filter((g): g is NonNullable<typeof g> => Boolean(g))
 
           const impactLabel =
             room.priceImpact.direction === "neutral"
@@ -102,7 +126,7 @@ export function RoomingOverview() {
           return (
             <div
               key={room.id}
-              className="border-border/70 bg-surface/60 hover:border-border rounded-lg border p-2.5 transition-colors"
+              className="border-border/70 bg-surface/60 hover:border-border group/room relative rounded-lg border p-2.5 transition-colors"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2">
@@ -119,12 +143,25 @@ export function RoomingOverview() {
                     </div>
                   </div>
                 </div>
-                <span
-                  aria-hidden
-                  className="text-muted-foreground/60 font-mono text-[11px]"
-                >
-                  {arrangementGlyph[room.arrangement] ?? ""}
-                </span>
+                <div className="flex items-start gap-1.5">
+                  <span
+                    aria-hidden
+                    className="text-muted-foreground/60 mt-0.5 font-mono text-[11px]"
+                  >
+                    {arrangementGlyph[room.arrangement] ?? ""}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Edit room ${room.id}`}
+                    className="opacity-0 transition-opacity group-hover/room:opacity-100 focus-visible:opacity-100"
+                    onClick={() =>
+                      openDrawer({ type: "rooming", roomId: room.id })
+                    }
+                  >
+                    <Pencil />
+                  </Button>
+                </div>
               </div>
 
               {/* Policy + impact row */}
@@ -162,17 +199,22 @@ export function RoomingOverview() {
                 </span>
               </div>
 
-              {/* Occupants */}
+              {/* Occupants — click to edit */}
               <div className="mt-2 flex flex-wrap gap-1">
-                {guests.map((g) => {
+                {occupants.map((g) => {
                   const initials = g.name
                     .split(" ")
                     .map((p) => p[0])
                     .join("")
                   return (
-                    <span
+                    <button
                       key={g.id}
-                      className="border-border/70 bg-surface-2/70 inline-flex items-center gap-1.5 rounded-full border py-0.5 pr-2 pl-0.5 text-[11px]"
+                      type="button"
+                      onClick={() =>
+                        openDrawer({ type: "guest", guestId: g.id })
+                      }
+                      aria-label={`Edit ${g.name}`}
+                      className="border-border/70 bg-surface-2/70 hover:border-border hover:bg-surface-2 inline-flex items-center gap-1.5 rounded-full border py-0.5 pr-2 pl-0.5 text-[11px] transition-colors"
                     >
                       <span className="bg-[color-mix(in_oklch,var(--gold)_22%,var(--surface-2))] text-[color-mix(in_oklch,var(--gold)_50%,var(--ink))] grid size-4 place-items-center rounded-full text-[9px] font-semibold">
                         {initials}
@@ -193,7 +235,7 @@ export function RoomingOverview() {
                           {g.dietary}
                         </Badge>
                       )}
-                    </span>
+                    </button>
                   )
                 })}
               </div>
@@ -212,11 +254,8 @@ export function RoomingOverview() {
               Per-guest pricing categories
             </div>
             <p className="text-muted-foreground mt-0.5">
-              Each guest is priced individually. Priya's Kenya work permit places
-              her in <span className="text-foreground/85 font-medium">EA
-              Resident</span>; the rest of the family is{" "}
-              <span className="text-foreground/85 font-medium">International</span>.
-              Engine never assumes shared nationality.
+              Each guest is priced individually. Click any chip to edit
+              nationality, age, pricing category, or residency documentation.
             </p>
           </div>
         </div>

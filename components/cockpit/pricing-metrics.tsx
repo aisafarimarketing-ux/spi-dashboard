@@ -1,8 +1,10 @@
+"use client"
+
 import {
   AlertTriangle,
   CircleDollarSign,
+  Pencil,
   ShieldCheck,
-  TrendingUp,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -15,8 +17,8 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import { QUOTE, TOTALS } from "@/lib/mock"
 import { aggregateByCategory } from "@/lib/pricing-engine"
+import { useQuote } from "./quote-provider"
 
 const formatUSD = (n: number, opts: Intl.NumberFormatOptions = {}) =>
   new Intl.NumberFormat("en-US", {
@@ -51,9 +53,10 @@ const categoryDisplayName: Record<string, string> = {
 }
 
 export function PricingMetrics() {
-  const breakdown = aggregateByCategory(QUOTE)
-  const errorCount = TOTALS.warnings.filter((w) => w.level === "error").length
-  const warnCount = TOTALS.warnings.filter((w) => w.level === "warning").length
+  const { quote, totals, openDrawer } = useQuote()
+  const breakdown = aggregateByCategory(quote)
+  const errorCount = totals.warnings.filter((w) => w.level === "error").length
+  const warnCount = totals.warnings.filter((w) => w.level === "warning").length
 
   return (
     <Card className="flex h-full flex-col">
@@ -62,37 +65,40 @@ export function PricingMetrics() {
           <CircleDollarSign className="text-muted-foreground size-3.5" />
           <CardTitle>Pricing</CardTitle>
           <Badge variant="muted" size="sm" className="font-mono">
-            {QUOTE.fx.base} · rate locked
+            {quote.fx.base} · rate locked
           </Badge>
           <Badge variant="muted" size="sm" className="font-mono">
             VAT 18%
           </Badge>
         </div>
         <CardAction>
-          <Button variant="ghost" size="xs">
-            <TrendingUp />
-            Margin curve
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => openDrawer({ type: "costs" })}
+          >
+            <Pencil />
+            Costs &amp; VAT
           </Button>
         </CardAction>
       </CardHeader>
 
       <CardContent className="flex flex-1 flex-col gap-3 pt-1">
-        {/* KPI grid — two rows */}
         <div className="grid grid-cols-3 gap-2">
           <Kpi
             label="Per pax"
-            value={formatUSD(TOTALS.perPax)}
-            sub={`${QUOTE.travel.pax} pax`}
+            value={formatUSD(totals.perPax)}
+            sub={`${quote.travel.pax} pax`}
           />
           <Kpi
             label="Per night"
-            value={formatUSD(TOTALS.perNight)}
-            sub={`${QUOTE.travel.nights}n`}
+            value={formatUSD(totals.perNight)}
+            sub={`${quote.travel.nights}n`}
           />
           <Kpi
             label="Margin"
-            value={`${TOTALS.marginPct.toFixed(1)}%`}
-            sub={formatUSD(TOTALS.margin)}
+            value={`${totals.marginPct.toFixed(1)}%`}
+            sub={formatUSD(totals.margin)}
             tone="success"
           />
         </div>
@@ -100,17 +106,17 @@ export function PricingMetrics() {
         <div className="grid grid-cols-3 gap-2">
           <Kpi
             label="Net cost"
-            value={formatUSD(TOTALS.netCost)}
+            value={formatUSD(totals.netCost)}
             sub="pre-VAT"
           />
           <Kpi
             label="VAT"
-            value={formatUSD(TOTALS.vat)}
-            sub={`on ${formatUSD(TOTALS.vatBreakdown.vatable)}`}
+            value={formatUSD(totals.vat)}
+            sub={`on ${formatUSD(totals.vatBreakdown.vatable)}`}
           />
           <Kpi
             label="Confidence"
-            value={`${Math.round(TOTALS.confidence * 100)}%`}
+            value={`${Math.round(totals.confidence * 100)}%`}
             sub={
               warnCount + errorCount === 0
                 ? "no flags"
@@ -126,12 +132,11 @@ export function PricingMetrics() {
           />
         </div>
 
-        {/* Stacked bar */}
         <div>
           <div className="text-muted-foreground mb-1.5 flex items-center justify-between text-[10.5px] tracking-[0.08em] uppercase">
             <span>Cost composition</span>
             <span className="font-mono normal-case tracking-normal">
-              {formatUSD(TOTALS.totalSell)} sell
+              {formatUSD(totals.totalSell)} sell
             </span>
           </div>
           <div className="border-border/60 bg-surface-2/40 flex h-2 w-full overflow-hidden rounded-full border">
@@ -175,7 +180,6 @@ export function PricingMetrics() {
           </ul>
         </div>
 
-        {/* Warnings strip */}
         {(errorCount > 0 || warnCount > 0) && (
           <div className="border-border/60 bg-[color-mix(in_oklch,var(--warning)_8%,var(--surface))] flex items-start gap-2 rounded-md border px-2.5 py-2">
             <AlertTriangle className="text-[color-mix(in_oklch,var(--warning)_55%,var(--ink))] mt-0.5 size-3.5 shrink-0" />
@@ -190,14 +194,14 @@ export function PricingMetrics() {
                   : ""}
               </div>
               <ul className="text-muted-foreground mt-0.5 space-y-0.5 text-[11px] leading-snug">
-                {TOTALS.warnings.slice(0, 2).map((w) => (
+                {totals.warnings.slice(0, 2).map((w) => (
                   <li key={w.id} className="line-clamp-1">
                     · {w.message}
                   </li>
                 ))}
-                {TOTALS.warnings.length > 2 && (
+                {totals.warnings.length > 2 && (
                   <li className="text-muted-foreground/70">
-                    + {TOTALS.warnings.length - 2} more
+                    + {totals.warnings.length - 2} more
                   </li>
                 )}
               </ul>
@@ -205,7 +209,6 @@ export function PricingMetrics() {
           </div>
         )}
 
-        {/* Engine reminder */}
         <div className="border-border/60 mt-auto flex items-center gap-2 rounded-md border border-dashed px-2.5 py-1.5">
           <ShieldCheck
             className="size-3.5 shrink-0"

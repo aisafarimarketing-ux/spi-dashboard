@@ -25,10 +25,10 @@ import { cn } from "@/lib/utils"
 import {
   INSIGHTS,
   PROPOSED_ACTIONS,
-  VERSIONS,
   type IntelligenceInsight,
   type ProposedAction,
 } from "@/lib/mock"
+import { useQuote } from "./quote-provider"
 
 const categoryIcon = {
   Substitution: ArrowRightLeft,
@@ -54,6 +54,7 @@ const formatUSD = (n: number) =>
 type Decision = "pending" | "approved" | "declined"
 
 export function IntelligencePanel() {
+  const { versions } = useQuote()
   const [decisions, setDecisions] = React.useState<Record<string, Decision>>(
     () =>
       Object.fromEntries(
@@ -103,7 +104,7 @@ export function IntelligencePanel() {
           [
             ["actions", "Actions", PROPOSED_ACTIONS.length],
             ["insights", "Insights", INSIGHTS.length],
-            ["history", "History", VERSIONS.length],
+            ["history", "History", versions.length],
           ] as const
         ).map(([key, label, count]) => (
           <button
@@ -193,7 +194,7 @@ export function IntelligencePanel() {
               aria-hidden
               className="bg-border/80 absolute top-3 bottom-3 left-[19px] w-px"
             />
-            {VERSIONS.map((v, idx) => (
+            {versions.map((v, idx) => (
               <li key={v.id} className="relative pb-3 pl-7 last:pb-0">
                 <span
                   aria-hidden
