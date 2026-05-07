@@ -11,11 +11,17 @@ import {
   Clock,
   CornerDownLeft,
   Eye,
+  Gauge,
+  Handshake,
   History,
   Lightbulb,
+  Map,
+  MapPin,
   Package2,
   PencilLine,
+  Radar,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
   TicketPercent,
   TriangleAlert,
@@ -40,6 +46,14 @@ import {
   type ParsedAction,
   type ParsedActionCategory,
 } from "@/lib/intelligence-parser"
+import { activeObservations } from "@/lib/operator-memory"
+import {
+  recommend,
+  type Recommendation,
+  type RecommendationKind,
+  type RecommendationTone,
+} from "@/lib/recommendation-engine"
+import { MemoryControls } from "./memory-controls"
 import { useQuote } from "./quote-provider"
 
 const formatUSD = (n: number) =>
@@ -87,7 +101,15 @@ const EXAMPLE_INPUTS = [
 ]
 
 export function IntelligencePanel() {
-  const { quote, versions, applyParsedQuote, openDrawer } = useQuote()
+  const {
+    quote,
+    versions,
+    memory,
+    memoryReady,
+    recordObservation,
+    applyParsedQuote,
+    openDrawer,
+  } = useQuote()
 
   const [activeTab, setActiveTab] = React.useState<
     "pending" | "insights" | "history"
@@ -113,17 +135,47 @@ export function IntelligencePanel() {
     )
   )
 
-  const runParser = React.useCallback(() => {
-    const result = parseIntelligence(input, quote)
-    setParseResult(result)
-    setParsedDecisions((prev) => {
-      const next = { ...prev }
-      for (const a of result.proposals) {
-        if (!next[a.id]) next[a.id] = "pending"
-      }
-      return next
-    })
-  }, [input, quote])
+  // Recommendations (memory-derived)
+  const [dismissedRecs, setDismissedRecs] = React.useState<
+    Record<string, true>
+  >({})
+
+  const recommendations = React.useMemo(() => {
+    if (!memoryReady) return []
+    const obs = activeObservations(memory, quote.id)
+    return recommend(quote, obs).filter((r) => !dismissedRecs[r.id])
+  }, [memory, memoryReady, quote, dismissedRecs])
+
+  const runParser = React.useCallback(
+    (forcedInput?: string) => {
+      const text = forcedInput ?? input
+      if (forcedInput !== undefined) setInput(forcedInput)
+      const result = parseIntelligence(text, quote)
+      setParseResult(result)
+      setParsedDecisions((prev) => {
+        const next = { ...prev }
+        for (const a of result.proposals) {
+          if (!next[a.id]) next[a.id] = "pending"
+        }
+        return next
+      })
+    },
+    [input, quote]
+  )
+
+  const triggerRecommendationAction = (
+    rec: Recommendation,
+    which: "primary" | "secondary"
+  ) => {
+    const action =
+      which === "primary" ? rec.primaryAction : rec.secondaryAction
+    if (!action) return
+    if (action.kind === "open-drawer") {
+      openDrawer(action.drawer)
+    } else if (action.kind === "open-parser") {
+      runParser(action.prompt)
+    }
+  }
 
   // ── Apply / Dismiss / Review handlers ────────────────────────────────
   const applyParsed = (action: ParsedAction) => {
@@ -139,14 +191,20 @@ export function IntelligencePanel() {
 
   const dismissParsed = (id: string) => {
     setParsedDecisions((d) => ({ ...d, [id]: "dismissed" }))
+    recordObservation("parsed-dismissed", { actionId: id })
   }
 
   const reviewParsed = (action: ParsedAction) => {
     if (action.reviewHint) openDrawer(action.reviewHint)
   }
 
-  const setStatic = (id: string, dec: StaticDecision) =>
+  const setStatic = (id: string, dec: StaticDecision) => {
     setStaticDecisions((d) => ({ ...d, [id]: dec }))
+    if (dec === "approved")
+      recordObservation("proposal-approved", { proposalId: id })
+    else if (dec === "declined")
+      recordObservation("proposal-declined", { proposalId: id })
+  }
 
   // ── Derived counts ───────────────────────────────────────────────────
   const parsedProposals = parseResult?.proposals ?? []
@@ -181,10 +239,13 @@ export function IntelligencePanel() {
             Nothing mutates silently.
           </p>
         </div>
-        <Badge variant="gold" size="sm" className="shrink-0 font-mono">
-          <BadgeCheck className="size-3" />
-          {totalPending} pending
-        </Badge>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <MemoryControls />
+          <Badge variant="gold" size="sm" className="font-mono">
+            <BadgeCheck className="size-3" />
+            {totalPending} pending
+          </Badge>
+        </div>
       </div>
 
       {/* Parser input */}
@@ -239,7 +300,35 @@ export function IntelligencePanel() {
       <div className="scrollbar-thin flex-1 overflow-y-auto">
         {activeTab === "pending" && (
           <div className="space-y-4 px-3 py-3">
-            {/* Recently applied — top of pending so the operator sees the receipt */}
+            {/* Recommendations — calm, observational, never auto-applied */}
+            {recommendations.length > 0 && (
+              <Section
+                title="Recommendations"
+                count={recommendations.length}
+                aside={
+                  <span className="text-muted-foreground/70 text-[10.5px]">
+                    based on your patterns
+                  </span>
+                }
+              >
+                <div className="space-y-1.5">
+                  {recommendations.map((rec) => (
+                    <RecommendationCard
+                      key={rec.id}
+                      rec={rec}
+                      onAction={(which) =>
+                        triggerRecommendationAction(rec, which)
+                      }
+                      onDismiss={() =>
+                        setDismissedRecs((d) => ({ ...d, [rec.id]: true }))
+                      }
+                    />
+                  ))}
+                </div>
+              </Section>
+            )}
+
+            {/* Recently applied — parser receipts */}
             {appliedParsed.length > 0 && (
               <Section title="Recently applied" count={appliedParsed.length}>
                 <div className="space-y-1.5">
@@ -942,6 +1031,115 @@ function Section({
       </div>
       {children}
     </section>
+  )
+}
+
+// ── Recommendation card ─────────────────────────────────────────────────
+
+const RECOMMENDATION_ICON: Record<RecommendationKind, React.ComponentType<{ className?: string }>> = {
+  margin: Gauge,
+  rooming: Users,
+  itinerary: Map,
+  negotiation: Handshake,
+  risk: ShieldAlert,
+  anomaly: Radar,
+}
+
+const TONE_LEFT_BORDER: Record<RecommendationTone, string> = {
+  watch:
+    "before:bg-[color-mix(in_oklch,var(--warning)_55%,transparent)]",
+  advisory:
+    "before:bg-[color-mix(in_oklch,var(--gold)_55%,transparent)]",
+  informational:
+    "before:bg-[color-mix(in_oklch,var(--success)_55%,transparent)]",
+}
+
+const TONE_LABEL: Record<RecommendationTone, string> = {
+  watch: "Watch",
+  advisory: "Advisory",
+  informational: "Confirmed",
+}
+
+function RecommendationCard({
+  rec,
+  onAction,
+  onDismiss,
+}: {
+  rec: Recommendation
+  onAction: (which: "primary" | "secondary") => void
+  onDismiss: () => void
+}) {
+  const Icon = RECOMMENDATION_ICON[rec.kind] ?? Sparkles
+  return (
+    <article
+      className={cn(
+        "relative overflow-hidden rounded-md border border-border/70 bg-card pl-3 pr-2.5 py-2 transition-colors",
+        // tone-tinted left bar
+        "before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[2px] before:rounded-full",
+        TONE_LEFT_BORDER[rec.tone]
+      )}
+    >
+      <div className="flex items-start gap-2">
+        <div className="bg-surface-2 text-foreground/80 mt-0.5 grid size-5 shrink-0 place-items-center rounded">
+          <Icon className="size-3" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-1.5">
+            <h4 className="text-foreground text-[12px] font-medium leading-tight">
+              {rec.title}
+            </h4>
+          </div>
+          <p className="text-muted-foreground mt-0.5 text-[11px] leading-snug">
+            {rec.rationale}
+          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <Badge variant="muted" size="sm" className="font-medium">
+              {TONE_LABEL[rec.tone]}
+            </Badge>
+            <span className="text-muted-foreground/70 text-[10px]">
+              {rec.basis}
+            </span>
+            <span className="text-muted-foreground/40 text-[10px]">·</span>
+            <span className="text-muted-foreground/70 font-mono text-[10px]">
+              conf {Math.round(rec.confidence * 100)}%
+            </span>
+            <div className="ml-auto flex items-center gap-1">
+              {rec.secondaryAction && (
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  onClick={() => onAction("secondary")}
+                >
+                  {rec.secondaryAction.label}
+                </Button>
+              )}
+              {rec.primaryAction && (
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => onAction("primary")}
+                >
+                  {rec.primaryAction.kind === "open-drawer" ? (
+                    <Eye />
+                  ) : (
+                    <Sparkles />
+                  )}
+                  {rec.primaryAction.label}
+                </Button>
+              )}
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                onClick={onDismiss}
+                aria-label="Dismiss recommendation"
+              >
+                <X />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
   )
 }
 
