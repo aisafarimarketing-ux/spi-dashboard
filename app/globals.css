@@ -218,4 +218,36 @@
       );
     background-size: 22px 22px;
   }
+
+  /* Calm hover lift — used on operational cards. No bounce, just a soft
+   * shadow deepening and 1px rise. Matches the safari-luxury rhythm. */
+  .card-lift {
+    transition:
+      box-shadow 220ms ease-out,
+      transform 220ms ease-out,
+      border-color 220ms ease-out;
+  }
+  .card-lift:hover {
+    box-shadow:
+      0 1px 0 rgba(0, 0, 0, 0.02),
+      0 6px 18px -8px rgba(60, 40, 20, 0.18);
+    transform: translateY(-1px);
+    border-color: color-mix(in oklch, var(--gold) 22%, var(--border));
+  }
+
+  /* Subtle, slow attention pulse for unacknowledged validator warnings.
+   * Slower and lower-amplitude than tailwind's default animate-pulse. */
+  @keyframes spi-pulse {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 0 0 0 0 color-mix(in oklch, var(--warning) 30%, transparent);
+    }
+    50% {
+      opacity: 0.92;
+      box-shadow: 0 0 0 4px color-mix(in oklch, var(--warning) 0%, transparent);
+    }
+  }
+  .pulse-warning {
+    animation: spi-pulse 2.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
 }

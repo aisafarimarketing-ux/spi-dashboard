@@ -1,3 +1,4 @@
+import { CommandPalette } from "@/components/cockpit/command-palette"
 import { DrawerRoot } from "@/components/cockpit/drawers/drawer-root"
 import { IntelligencePanel } from "@/components/cockpit/intelligence-panel"
 import { ItineraryTimeline } from "@/components/cockpit/itinerary"
@@ -6,6 +7,7 @@ import { QuoteHeader } from "@/components/cockpit/quote-header"
 import { QuoteProvider } from "@/components/cockpit/quote-provider"
 import { QuoteSidebar } from "@/components/cockpit/quote-sidebar"
 import { RoomingOverview } from "@/components/cockpit/rooming"
+import { StatusStrip } from "@/components/cockpit/status-strip"
 import { TopNav } from "@/components/cockpit/top-nav"
 
 export default function CockpitPage() {
@@ -18,6 +20,7 @@ export default function CockpitPage() {
 
           <main className="scrollbar-thin flex min-w-0 flex-1 flex-col overflow-y-auto">
             <QuoteHeader />
+            <StatusStrip />
 
             <div className="flex flex-1 flex-col gap-3 p-4">
               <ItineraryTimeline />
@@ -36,6 +39,7 @@ export default function CockpitPage() {
           <IntelligencePanel />
         </div>
         <DrawerRoot />
+        <CommandPalette />
       </QuoteProvider>
     </div>
   )

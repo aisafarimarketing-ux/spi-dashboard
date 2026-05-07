@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import {
   ArrowUpRight,
   CalendarDays,
@@ -12,7 +13,9 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ExportModal } from "./export-modal"
 import { useQuote } from "./quote-provider"
+import { ReviewAndSend } from "./review-send"
 
 const formatUSD = (n: number) =>
   new Intl.NumberFormat("en-US", {
@@ -30,6 +33,8 @@ const formatDateRange = (start: string, end: string) => {
 
 export function QuoteHeader() {
   const { quote, totals, versions } = useQuote()
+  const [reviewOpen, setReviewOpen] = React.useState(false)
+  const [exportOpen, setExportOpen] = React.useState(false)
   const adultCount = quote.guests.filter((g) => g.type === "Adult").length
   const childCount = quote.guests.filter((g) => g.type === "Child").length
   const infantCount = quote.guests.filter((g) => g.type === "Infant").length
@@ -120,16 +125,23 @@ export function QuoteHeader() {
             <Share2 />
             Share
           </Button>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setExportOpen(true)}
+          >
             <Download />
             Export
           </Button>
-          <Button size="sm">
+          <Button size="sm" onClick={() => setReviewOpen(true)}>
             <Send />
             Review & Send
           </Button>
         </div>
       </div>
+
+      <ReviewAndSend open={reviewOpen} onOpenChange={setReviewOpen} />
+      <ExportModal open={exportOpen} onOpenChange={setExportOpen} />
     </section>
   )
 }

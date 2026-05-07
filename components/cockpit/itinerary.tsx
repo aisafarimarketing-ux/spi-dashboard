@@ -47,7 +47,7 @@ const formatDayDate = (iso: string) => {
 
 export function ItineraryTimeline() {
   return (
-    <Card className="overflow-hidden">
+    <Card className="card-lift overflow-hidden">
       <CardHeader>
         <div className="flex items-center gap-2">
           <Map className="text-muted-foreground size-3.5" />

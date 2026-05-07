@@ -63,9 +63,12 @@ export function QuoteSidebar() {
               type="button"
               data-active={q.pinned ? true : undefined}
               className={cn(
-                "group/item relative flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left transition-colors",
+                "group/item relative flex w-full items-start gap-2.5 rounded-md px-2 py-2 pl-3 text-left transition-colors",
                 "hover:bg-sidebar-accent",
-                "data-[active=true]:bg-sidebar-accent"
+                "data-[active=true]:bg-sidebar-accent",
+                // Gold left rail on the active row — calm operational accent.
+                "before:absolute before:top-1.5 before:bottom-1.5 before:left-0 before:w-[2px] before:rounded-full before:bg-transparent before:transition-colors",
+                "data-[active=true]:before:bg-[color-mix(in_oklch,var(--gold)_60%,var(--ink))]"
               )}
             >
               <span

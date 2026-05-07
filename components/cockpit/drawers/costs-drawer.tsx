@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   CircleDollarSign,
   Fuel,
+  Loader2,
   ShieldCheck,
   TreePine,
 } from "lucide-react"
@@ -147,12 +148,18 @@ export function CostsDrawer() {
     JSON.stringify(draftCosts) !== JSON.stringify(quote.costs) ||
     draftMarginPct !== quote.marginPct
 
+  const [saving, setSaving] = React.useState(false)
   const handleApply = () => {
-    applyChanges(
-      { costs: draftCosts, marginPct: draftMarginPct },
-      buildChangeNote(quote, draftCosts, draftMarginPct)
-    )
-    closeDrawer()
+    if (saving) return
+    setSaving(true)
+    window.setTimeout(() => {
+      applyChanges(
+        { costs: draftCosts, marginPct: draftMarginPct },
+        buildChangeNote(quote, draftCosts, draftMarginPct)
+      )
+      setSaving(false)
+      closeDrawer()
+    }, 240)
   }
 
   return (
@@ -470,11 +477,27 @@ export function CostsDrawer() {
             confidence={candidateTotals.confidence}
           />
           <div className="flex items-center gap-1">
-            <Button variant="outline" size="sm" onClick={closeDrawer}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={closeDrawer}
+              disabled={saving}
+            >
               Cancel
             </Button>
-            <Button size="sm" onClick={handleApply} disabled={!dirty}>
-              Apply
+            <Button
+              size="sm"
+              onClick={handleApply}
+              disabled={!dirty || saving}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="animate-spin" />
+                  Applying
+                </>
+              ) : (
+                "Apply"
+              )}
             </Button>
           </div>
         </SheetFooter>

@@ -4,27 +4,31 @@ import * as React from "react"
 import {
   ArrowRightLeft,
   BadgeCheck,
+  BedDouble,
   Brain,
   Calculator,
   Check,
   ChevronRight,
   Clock,
   CornerDownLeft,
+  Download,
   Eye,
   Gauge,
+  GitCommitHorizontal,
   Handshake,
-  History,
   Lightbulb,
+  Loader2,
   Map,
-  MapPin,
   Package2,
   PencilLine,
   Radar,
+  Send,
   ShieldAlert,
-  ShieldCheck,
   Sparkles,
   TicketPercent,
   TriangleAlert,
+  UserMinus,
+  UserPlus,
   Users,
   Wallet,
   X,
@@ -54,7 +58,7 @@ import {
   type RecommendationTone,
 } from "@/lib/recommendation-engine"
 import { MemoryControls } from "./memory-controls"
-import { useQuote } from "./quote-provider"
+import { useQuote, type ActivityEntry, type ActivityKind } from "./quote-provider"
 
 const formatUSD = (n: number) =>
   new Intl.NumberFormat("en-US", {
@@ -104,6 +108,7 @@ export function IntelligencePanel() {
   const {
     quote,
     versions,
+    activity,
     memory,
     memoryReady,
     recordObservation,
@@ -112,7 +117,7 @@ export function IntelligencePanel() {
   } = useQuote()
 
   const [activeTab, setActiveTab] = React.useState<
-    "pending" | "insights" | "history"
+    "pending" | "insights" | "activity" | "history"
   >("pending")
 
   // Parser state
@@ -125,6 +130,9 @@ export function IntelligencePanel() {
     Record<string, string>
   >({})
   const [examplesOpen, setExamplesOpen] = React.useState(false)
+  // Brief pending state to give Analyze/Apply a deliberate, trustworthy beat.
+  const [analyzing, setAnalyzing] = React.useState(false)
+  const [applyingId, setApplyingId] = React.useState<string | null>(null)
 
   // Static proposals (shipped with the cockpit)
   const [staticDecisions, setStaticDecisions] = React.useState<
@@ -150,15 +158,22 @@ export function IntelligencePanel() {
     (forcedInput?: string) => {
       const text = forcedInput ?? input
       if (forcedInput !== undefined) setInput(forcedInput)
-      const result = parseIntelligence(text, quote)
-      setParseResult(result)
-      setParsedDecisions((prev) => {
-        const next = { ...prev }
-        for (const a of result.proposals) {
-          if (!next[a.id]) next[a.id] = "pending"
-        }
-        return next
-      })
+      setAnalyzing(true)
+      // Brief deliberate pause — gives the parse an operational rhythm rather
+      // than feeling like a typeahead. Real engines should swap this for the
+      // actual async parse.
+      window.setTimeout(() => {
+        const result = parseIntelligence(text, quote)
+        setParseResult(result)
+        setParsedDecisions((prev) => {
+          const next = { ...prev }
+          for (const a of result.proposals) {
+            if (!next[a.id]) next[a.id] = "pending"
+          }
+          return next
+        })
+        setAnalyzing(false)
+      }, 240)
     },
     [input, quote]
   )
@@ -179,14 +194,18 @@ export function IntelligencePanel() {
 
   // ── Apply / Dismiss / Review handlers ────────────────────────────────
   const applyParsed = (action: ParsedAction) => {
-    if (!action.apply) return
-    const nextQuote = action.apply(quote)
-    applyParsedQuote(nextQuote, `SPI: ${action.title}`)
-    setParsedDecisions((d) => ({ ...d, [action.id]: "applied" }))
-    setParsedAppliedAt((d) => ({
-      ...d,
-      [action.id]: new Date().toISOString(),
-    }))
+    if (!action.apply || applyingId) return
+    setApplyingId(action.id)
+    window.setTimeout(() => {
+      const nextQuote = action.apply!(quote)
+      applyParsedQuote(nextQuote, `SPI: ${action.title}`)
+      setParsedDecisions((d) => ({ ...d, [action.id]: "applied" }))
+      setParsedAppliedAt((d) => ({
+        ...d,
+        [action.id]: new Date().toISOString(),
+      }))
+      setApplyingId(null)
+    }, 220)
   }
 
   const dismissParsed = (id: string) => {
@@ -260,6 +279,7 @@ export function IntelligencePanel() {
         examplesOpen={examplesOpen}
         setExamplesOpen={setExamplesOpen}
         result={parseResult}
+        analyzing={analyzing}
       />
 
       {/* Tabs */}
@@ -268,6 +288,7 @@ export function IntelligencePanel() {
           [
             ["pending", "Pending", totalPending],
             ["insights", "Insights", INSIGHTS.length],
+            ["activity", "Activity", activity.length],
             ["history", "History", versions.length],
           ] as const
         ).map(([key, label, count]) => (
@@ -367,6 +388,7 @@ export function IntelligencePanel() {
                       key={p.id}
                       action={p}
                       decision={parsedDecisions[p.id] ?? "pending"}
+                      applying={applyingId === p.id}
                       onApply={() => applyParsed(p)}
                       onDismiss={() => dismissParsed(p.id)}
                       onReview={() => reviewParsed(p)}
@@ -443,6 +465,10 @@ export function IntelligencePanel() {
               </li>
             ))}
           </ul>
+        )}
+
+        {activeTab === "activity" && (
+          <ActivityFeed entries={activity} />
         )}
 
         {activeTab === "history" && (
@@ -533,6 +559,7 @@ function ParserInput({
   examplesOpen,
   setExamplesOpen,
   result,
+  analyzing,
 }: {
   value: string
   onChange: (v: string) => void
@@ -541,6 +568,7 @@ function ParserInput({
   examplesOpen: boolean
   setExamplesOpen: (b: boolean) => void
   result: ParseResult | null
+  analyzing: boolean
 }) {
   const ref = React.useRef<HTMLTextAreaElement>(null)
 
@@ -588,8 +616,15 @@ function ParserInput({
         />
         <div className="flex items-center justify-between gap-2 px-2 pt-0.5 pb-1.5">
           <div className="text-muted-foreground/80 text-[10.5px]">
-            {result === null && "SPI proposes — operator approves."}
-            {result !== null &&
+            {analyzing && (
+              <span className="inline-flex items-center gap-1">
+                <Loader2 className="size-2.5 animate-spin" />
+                Analyzing your message…
+              </span>
+            )}
+            {!analyzing && result === null && "SPI proposes — operator approves."}
+            {!analyzing &&
+              result !== null &&
               (matched === 0
                 ? "Nothing matched — try the examples."
                 : `${matched} action${matched === 1 ? "" : "s"} parsed${
@@ -597,7 +632,7 @@ function ParserInput({
                   }`)}
           </div>
           <div className="flex items-center gap-1.5">
-            {value && (
+            {value && !analyzing && (
               <Button
                 variant="ghost"
                 size="xs"
@@ -610,13 +645,22 @@ function ParserInput({
             <Button
               size="xs"
               onClick={onSubmit}
-              disabled={!value.trim()}
+              disabled={!value.trim() || analyzing}
               aria-label="Run analysis"
             >
-              Analyze
-              <Kbd className="ml-1 border-transparent bg-transparent">
-                <CornerDownLeft className="size-2.5" />
-              </Kbd>
+              {analyzing ? (
+                <>
+                  <Loader2 className="animate-spin" />
+                  Analyzing
+                </>
+              ) : (
+                <>
+                  Analyze
+                  <Kbd className="ml-1 border-transparent bg-transparent">
+                    <CornerDownLeft className="size-2.5" />
+                  </Kbd>
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -648,6 +692,7 @@ function ParserInput({
 function ParsedActionCard({
   action,
   decision,
+  applying,
   onApply,
   onDismiss,
   onReview,
@@ -655,6 +700,7 @@ function ParsedActionCard({
 }: {
   action: ParsedAction
   decision: ParsedDecision
+  applying: boolean
   onApply: () => void
   onDismiss: () => void
   onReview: () => void
@@ -786,20 +832,39 @@ function ParsedActionCard({
             </Button>
           ) : (
             <>
-              <Button size="xs" variant="ghost" onClick={onDismiss}>
+              <Button
+                size="xs"
+                variant="ghost"
+                onClick={onDismiss}
+                disabled={applying}
+              >
                 <X />
                 Dismiss
               </Button>
               {action.reviewHint && (
-                <Button size="xs" variant="outline" onClick={onReview}>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={onReview}
+                  disabled={applying}
+                >
                   <Eye />
                   Review
                 </Button>
               )}
               {!reviewOnly && (
-                <Button size="xs" onClick={onApply}>
-                  <Check />
-                  Apply
+                <Button size="xs" onClick={onApply} disabled={applying}>
+                  {applying ? (
+                    <>
+                      <Loader2 className="animate-spin" />
+                      Applying
+                    </>
+                  ) : (
+                    <>
+                      <Check />
+                      Apply
+                    </>
+                  )}
                 </Button>
               )}
             </>
@@ -1166,4 +1231,122 @@ function humanCategory(c: ParsedActionCategory): string {
     default:
       return "Action"
   }
+}
+
+// ── Activity micro-feed ──────────────────────────────────────────────────
+
+const ACTIVITY_ICON: Record<ActivityKind, React.ComponentType<{ className?: string }>> = {
+  version: GitCommitHorizontal,
+  rooming: BedDouble,
+  "guest-add": UserPlus,
+  "guest-remove": UserMinus,
+  vat: Wallet,
+  margin: Calculator,
+  "spi-applied": Sparkles,
+  "spi-dismissed": X,
+  review: Send,
+  export: Download,
+  warning: TriangleAlert,
+}
+
+const ACTIVITY_TINT: Record<ActivityKind, string> = {
+  version: "text-[color-mix(in_oklch,var(--gold)_55%,var(--ink))]",
+  rooming: "text-foreground/80",
+  "guest-add": "text-[color-mix(in_oklch,var(--success)_55%,var(--ink))]",
+  "guest-remove": "text-muted-foreground",
+  vat: "text-foreground/80",
+  margin: "text-foreground/80",
+  "spi-applied": "text-[color-mix(in_oklch,var(--gold)_55%,var(--ink))]",
+  "spi-dismissed": "text-muted-foreground",
+  review: "text-[color-mix(in_oklch,var(--success)_55%,var(--ink))]",
+  export: "text-foreground/80",
+  warning: "text-[color-mix(in_oklch,var(--warning)_55%,var(--ink))]",
+}
+
+function formatActivityAgo(iso: string, now: number): string {
+  const ms = now - new Date(iso).getTime()
+  if (ms < 5_000) return "just now"
+  const s = Math.floor(ms / 1000)
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m`
+  const h = Math.floor(m / 60)
+  return `${h}h`
+}
+
+function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
+  // Tick once a second so the relative timestamps stay alive — single state
+  // means a single re-render, not one per row.
+  const [now, setNow] = React.useState(() => Date.now())
+  React.useEffect(() => {
+    const handle = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(handle)
+  }, [])
+
+  if (entries.length === 0) {
+    return (
+      <div className="px-4 py-6">
+        <div className="border-border/60 rounded-md border border-dashed px-3 py-5 text-center">
+          <div className="text-foreground/85 text-[12px] font-medium">
+            Quiet on the wire
+          </div>
+          <p className="text-muted-foreground mt-1 text-[11px] leading-snug">
+            Activity will appear here as you edit the quote — guests, rooming,
+            VAT flips, margin changes, and SPI-applied proposals.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <ol className="px-3 py-2">
+      {entries.map((e) => {
+        const Icon = ACTIVITY_ICON[e.kind] ?? Sparkles
+        return (
+          <li
+            key={e.id}
+            className="hover:bg-surface-2/50 group flex items-start gap-2.5 rounded-md px-1.5 py-1.5 transition-colors"
+          >
+            <span
+              className={cn(
+                "border-border/60 bg-card mt-0.5 grid size-6 shrink-0 place-items-center rounded-md border",
+                ACTIVITY_TINT[e.kind]
+              )}
+            >
+              <Icon className="size-3" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-foreground/90 text-[12px] leading-tight">
+                {e.title}
+              </div>
+              {e.detail && (
+                <div className="text-muted-foreground mt-0.5 truncate text-[11px] leading-tight">
+                  {e.detail}
+                </div>
+              )}
+            </div>
+            <div className="flex shrink-0 items-baseline gap-1.5 pt-0.5 text-right">
+              {typeof e.delta === "number" && e.delta !== 0 && (
+                <span
+                  className={cn(
+                    "font-mono text-[10.5px]",
+                    e.delta < 0
+                      ? "text-[color-mix(in_oklch,var(--success)_55%,var(--ink))]"
+                      : "text-[color-mix(in_oklch,var(--destructive)_55%,var(--ink))]"
+                  )}
+                >
+                  {e.delta < 0 ? "−" : "+"}
+                  {formatUSD(Math.abs(e.delta))}
+                </span>
+              )}
+              <span className="text-muted-foreground/80 font-mono text-[10px]">
+                {formatActivityAgo(e.at, now)}
+              </span>
+            </div>
+          </li>
+        )
+      })}
+    </ol>
+  )
 }

@@ -59,7 +59,7 @@ export function PricingMetrics() {
   const warnCount = totals.warnings.filter((w) => w.level === "warning").length
 
   return (
-    <Card className="flex h-full flex-col">
+    <Card className="card-lift flex h-full flex-col">
       <CardHeader>
         <div className="flex items-center gap-2">
           <CircleDollarSign className="text-muted-foreground size-3.5" />

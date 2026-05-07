@@ -3,6 +3,7 @@
 import * as React from "react"
 import {
   AlertCircle,
+  Loader2,
   Sparkles,
   Trash2,
   UserPlus,
@@ -135,14 +136,19 @@ export function GuestDrawer({ guestId }: { guestId?: string }) {
   }
 
   const canApply = issues.length === 0
+  const [saving, setSaving] = React.useState(false)
 
   const handleApply = () => {
-    if (!canApply) return
-    upsertGuest(
-      draft,
-      isNew ? `Added guest: ${draft.name}` : `Updated guest: ${draft.name}`
-    )
-    closeDrawer()
+    if (!canApply || saving) return
+    setSaving(true)
+    window.setTimeout(() => {
+      upsertGuest(
+        draft,
+        isNew ? `Added guest: ${draft.name}` : `Updated guest: ${draft.name}`
+      )
+      setSaving(false)
+      closeDrawer()
+    }, 220)
   }
 
   const handleDelete = () => {
@@ -405,11 +411,29 @@ export function GuestDrawer({ guestId }: { guestId?: string }) {
                 Remove
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={closeDrawer}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={closeDrawer}
+              disabled={saving}
+            >
               Cancel
             </Button>
-            <Button size="sm" onClick={handleApply} disabled={!canApply}>
-              {isNew ? "Add guest" : "Save"}
+            <Button
+              size="sm"
+              onClick={handleApply}
+              disabled={!canApply || saving}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="animate-spin" />
+                  Saving
+                </>
+              ) : isNew ? (
+                "Add guest"
+              ) : (
+                "Save"
+              )}
             </Button>
           </div>
         </SheetFooter>

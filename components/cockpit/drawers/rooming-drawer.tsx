@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { BedDouble, Plus, Trash2 } from "lucide-react"
+import { BedDouble, Loader2, Plus, Trash2 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -139,16 +139,22 @@ export function RoomingDrawer({ roomId }: { roomId?: string }) {
     preview,
   ])
 
+  const [saving, setSaving] = React.useState(false)
+
   const handleApply = () => {
-    upsertRoom(
-      draft,
-      isNew
-        ? `Added arrangement: ${ARRANGEMENT_LABEL[draft.arrangement]}`
-        : `Updated room ${draft.id.replace("r", "")}: ${
-            ARRANGEMENT_LABEL[draft.arrangement]
-          } · ${SOURCE_LABEL[draft.policy.source]}`
-    )
-    closeDrawer()
+    setSaving(true)
+    window.setTimeout(() => {
+      upsertRoom(
+        draft,
+        isNew
+          ? `Added arrangement: ${ARRANGEMENT_LABEL[draft.arrangement]}`
+          : `Updated room ${draft.id.replace("r", "")}: ${
+              ARRANGEMENT_LABEL[draft.arrangement]
+            } · ${SOURCE_LABEL[draft.policy.source]}`
+      )
+      setSaving(false)
+      closeDrawer()
+    }, 220)
   }
 
   const handleDelete = () => {
@@ -409,11 +415,25 @@ export function RoomingDrawer({ roomId }: { roomId?: string }) {
                 Remove
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={closeDrawer}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={closeDrawer}
+              disabled={saving}
+            >
               Cancel
             </Button>
-            <Button size="sm" onClick={handleApply}>
-              {isNew ? "Add arrangement" : "Save"}
+            <Button size="sm" onClick={handleApply} disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="animate-spin" />
+                  Saving
+                </>
+              ) : isNew ? (
+                "Add arrangement"
+              ) : (
+                "Save"
+              )}
             </Button>
           </div>
         </SheetFooter>

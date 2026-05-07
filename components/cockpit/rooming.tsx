@@ -81,7 +81,7 @@ export function RoomingOverview() {
   const { guests, rooms } = quote
 
   return (
-    <Card className="flex h-full flex-col">
+    <Card className="card-lift flex h-full flex-col">
       <CardHeader>
         <div className="flex items-center gap-2">
           <UsersRound className="text-muted-foreground size-3.5" />

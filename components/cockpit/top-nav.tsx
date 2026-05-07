@@ -1,3 +1,5 @@
+"use client"
+
 import {
   Bell,
   ChevronDown,
@@ -13,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Kbd } from "@/components/ui/kbd"
 import { Separator } from "@/components/ui/separator"
+import { openCommandPalette } from "./command-palette"
 
 export function TopNav() {
   return (
@@ -67,7 +70,9 @@ export function TopNav() {
       <div className="mx-auto flex w-full max-w-[420px] items-center">
         <button
           type="button"
-          className="border-border/70 bg-surface-2/60 hover:bg-surface-2 hover:border-border text-muted-foreground flex h-8 w-full items-center gap-2 rounded-lg border px-2.5 text-[12.5px] transition-colors"
+          onClick={openCommandPalette}
+          aria-label="Open command palette"
+          className="border-border/70 bg-surface-2/60 hover:bg-surface-2 hover:border-border focus-visible:border-ring focus-visible:ring-ring/40 focus-visible:ring-3 text-muted-foreground flex h-8 w-full items-center gap-2 rounded-lg border px-2.5 text-[12.5px] transition-colors outline-none"
         >
           <Search className="size-3.5" />
           <span className="truncate">

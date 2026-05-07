@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { useToast } from "@/components/ui/toast"
 import {
   QUOTE as INITIAL_QUOTE,
   VERSIONS as INITIAL_VERSIONS,
@@ -21,12 +22,38 @@ import {
 } from "@/lib/operator-memory"
 import { quoteTotals } from "@/lib/pricing-engine"
 import type {
-  CostLine,
   Guest,
   Quote,
   QuoteTotals,
   RoomAssignment,
 } from "@/lib/types"
+
+// ── Activity feed ─────────────────────────────────────────────────────────
+
+export type ActivityKind =
+  | "version"
+  | "rooming"
+  | "guest-add"
+  | "guest-remove"
+  | "vat"
+  | "margin"
+  | "spi-applied"
+  | "spi-dismissed"
+  | "review"
+  | "export"
+  | "warning"
+
+export interface ActivityEntry {
+  id: string
+  at: string
+  kind: ActivityKind
+  title: string
+  detail?: string
+  /** Optional money delta vs prior snapshot, in USD. */
+  delta?: number
+}
+
+const ACTIVITY_CAP = 30
 
 export type DrawerState =
   | { type: "guest"; guestId?: string }
@@ -53,6 +80,13 @@ interface QuoteContextValue {
   applyParsedQuote: (next: Quote, note: string) => void
 
   preview: (next: Quote) => QuoteTotals
+
+  // ── Operational state ─────────────────────────────────────────────────
+  activity: ActivityEntry[]
+  /** Push a custom activity entry. Most flows push automatically. */
+  pushActivity: (entry: Omit<ActivityEntry, "id" | "at">) => void
+  /** ISO timestamp of the last commit that touched the quote. */
+  lastSavedAt: string
 
   // ── Memory ────────────────────────────────────────────────────────────
   memory: OperatorMemoryState
@@ -85,10 +119,19 @@ export function useQuote(): QuoteContextValue {
 const EMPTY_MEMORY: OperatorMemoryState = { scope: "workspace", observations: [] }
 
 export function QuoteProvider({ children }: { children: React.ReactNode }) {
+  const { toast } = useToast()
+
   const [quote, setQuote] = React.useState<Quote>(INITIAL_QUOTE)
   const [versions, setVersions] =
     React.useState<VersionEntry[]>(INITIAL_VERSIONS)
   const [drawer, setDrawer] = React.useState<DrawerState>(null)
+
+  const [activity, setActivity] = React.useState<ActivityEntry[]>([])
+  // Lazy init keeps SSR rendering an empty string (no relative-time text)
+  // and the client gets a real timestamp on first render — no effect needed.
+  const [lastSavedAt, setLastSavedAt] = React.useState<string>(() =>
+    typeof window === "undefined" ? "" : new Date().toISOString()
+  )
 
   const [memory, setMemory] = React.useState<OperatorMemoryState>(EMPTY_MEMORY)
   const [memoryReady, setMemoryReady] = React.useState(false)
@@ -126,23 +169,59 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
     [quote.id]
   )
 
+  // ── Activity feed ──────────────────────────────────────────────────────
+  const pushActivity = React.useCallback(
+    (entry: Omit<ActivityEntry, "id" | "at">) => {
+      const next: ActivityEntry = {
+        ...entry,
+        id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        at: new Date().toISOString(),
+      }
+      setActivity((s) => [next, ...s].slice(0, ACTIVITY_CAP))
+    },
+    []
+  )
+
   // ── Version commit ─────────────────────────────────────────────────────
   const commit = React.useCallback(
     (next: Quote, note: string, via: "spi" | "manual" = "manual") => {
-      const prevTotal = quoteTotals(quote).totalSell
-      const nextTotal = quoteTotals(next).totalSell
-      const delta = Math.round(nextTotal - prevTotal)
+      const prev = quoteTotals(quote)
+      const nextTotals = quoteTotals(next)
+      const delta = Math.round(nextTotals.totalSell - prev.totalSell)
       const author = quote.agent.name
 
+      // Detect newly-introduced error-level validator flags so the operator
+      // sees them immediately rather than discovering them later.
+      const prevIds = new Set(prev.warnings.map((w) => w.id))
+      const newErrors = nextTotals.warnings.filter(
+        (w) => w.level === "error" && !prevIds.has(w.id)
+      )
+      if (newErrors.length > 0) {
+        const headline = newErrors[0].message
+        pushActivity({
+          kind: "warning",
+          title: `Warning detected · ${headline}`,
+        })
+        toast({
+          title:
+            newErrors.length === 1
+              ? "Warning detected"
+              : `${newErrors.length} warnings detected`,
+          description: headline,
+          tone: "warning",
+        })
+      }
+
+      let nextVersionNumber = 0
       setVersions((vs) => {
-        const nextNumber = vs.length + 1
+        nextVersionNumber = vs.length + 1
         const promoted = vs.map((v) => ({
           ...v,
           label: v.label.replace(" · current", ""),
         }))
         const newest: VersionEntry = {
-          id: `v${nextNumber}-${Date.now()}`,
-          label: `v${nextNumber} · current`,
+          id: `v${nextVersionNumber}-${Date.now()}`,
+          label: `v${nextVersionNumber} · current`,
           author,
           authoredAt: "just now",
           delta,
@@ -152,8 +231,15 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
         return [newest, ...promoted]
       })
       setQuote(next)
+      setLastSavedAt(new Date().toISOString())
+      pushActivity({
+        kind: "version",
+        title: `v${nextVersionNumber} saved`,
+        detail: note,
+        delta,
+      })
     },
-    [quote]
+    [quote, pushActivity, toast]
   )
 
   const upsertGuest = React.useCallback(
@@ -169,6 +255,11 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
           age: g.age,
           pricingCategory: g.pricingCategory,
         })
+        pushActivity({
+          kind: "guest-add",
+          title: `${g.name} added`,
+          detail: `${g.type} · ${g.nationality}`,
+        })
       }
       commit(
         {
@@ -178,8 +269,13 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
         },
         note
       )
+      toast({
+        title: exists ? "Guest updated" : "Guest added",
+        description: g.name,
+        tone: "success",
+      })
     },
-    [commit, observe, quote]
+    [commit, observe, pushActivity, quote, toast]
   )
 
   const removeGuest = React.useCallback(
@@ -195,6 +291,10 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
           type: target.type,
           nationality: target.nationality,
         })
+        pushActivity({
+          kind: "guest-remove",
+          title: `${target.name} removed`,
+        })
       }
       commit(
         {
@@ -205,8 +305,15 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
         },
         note
       )
+      if (target) {
+        toast({
+          title: "Guest removed",
+          description: target.name,
+          tone: "info",
+        })
+      }
     },
-    [commit, observe, quote]
+    [commit, observe, pushActivity, quote, toast]
   )
 
   const upsertRoom = React.useCallback(
@@ -233,17 +340,28 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
           confidence: room.policy.confidence,
         })
       }
+      pushActivity({
+        kind: "rooming",
+        title: exists ? "Rooming updated" : "Room added",
+        detail: room.arrangement,
+      })
       commit({ ...quote, rooms }, note)
+      toast({
+        title: exists ? "Rooming updated" : "Room added",
+        description: room.arrangement,
+        tone: "success",
+      })
     },
-    [commit, observe, quote]
+    [commit, observe, pushActivity, quote, toast]
   )
 
   const removeRoom = React.useCallback(
     (id: string, note: string) => {
       const rooms = quote.rooms.filter((r) => r.id !== id)
       commit({ ...quote, rooms }, note)
+      toast({ title: "Room removed", tone: "info" })
     },
-    [commit, quote]
+    [commit, quote, toast]
   )
 
   const applyChanges = React.useCallback(
@@ -264,6 +382,11 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
             to: partial.marginPct,
           })
         }
+        pushActivity({
+          kind: "margin",
+          title: `Margin set to ${(partial.marginPct * 100).toFixed(1)}%`,
+          detail: `from ${(quote.marginPct * 100).toFixed(1)}%`,
+        })
       }
 
       // Detect VAT-flag changes.
@@ -273,27 +396,47 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
           if (!prev || prev.vatable === next.vatable) continue
           if (next.category === "Fuel" && next.vatable === false) {
             observe("fuel-non-vat-confirmed", { lineId: next.id })
+            pushActivity({
+              kind: "vat",
+              title: "Fuel confirmed non-VAT",
+              detail: next.label,
+            })
           } else {
             observe("vat-flipped", {
               lineId: next.id,
               category: next.category,
               vatable: next.vatable,
             })
+            pushActivity({
+              kind: "vat",
+              title: `VAT ${next.vatable ? "on" : "off"}: ${next.label}`,
+            })
           }
         }
       }
 
       commit({ ...quote, ...partial }, note)
+      toast({ title: "Changes applied", description: note, tone: "success" })
     },
-    [commit, observe, quote]
+    [commit, observe, pushActivity, quote, toast]
   )
 
   const applyParsedQuote = React.useCallback(
     (next: Quote, note: string) => {
       observe("parsed-applied", { note })
+      pushActivity({
+        kind: "spi-applied",
+        title: "Proposal applied",
+        detail: note,
+      })
       commit(next, note, "spi")
+      toast({
+        title: "Proposal applied",
+        description: note,
+        tone: "success",
+      })
     },
-    [commit, observe]
+    [commit, observe, pushActivity, toast]
   )
 
   const setMemoryScope = React.useCallback((scope: MemoryScope) => {
@@ -310,8 +453,17 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
   const recordObservation = React.useCallback(
     (type: ObservationType, context: Observation["context"] = {}) => {
       observe(type, context)
+      // Surface key UI-driven observations on the activity feed and as toasts.
+      if (type === "parsed-dismissed") {
+        pushActivity({ kind: "spi-dismissed", title: "Proposal dismissed" })
+        toast({ title: "Proposal dismissed", tone: "info" })
+      } else if (type === "proposal-approved") {
+        toast({ title: "Proposal approved", tone: "success" })
+      } else if (type === "proposal-declined") {
+        toast({ title: "Proposal declined", tone: "info" })
+      }
     },
-    [observe]
+    [observe, pushActivity, toast]
   )
 
   const value: QuoteContextValue = {
@@ -328,6 +480,9 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
     applyChanges,
     applyParsedQuote,
     preview,
+    activity,
+    pushActivity,
+    lastSavedAt,
     memory,
     memoryReady,
     setMemoryScope,
