@@ -104,7 +104,26 @@ const EXAMPLE_INPUTS = [
   "keep fuel non-VAT",
 ]
 
-export function IntelligencePanel() {
+export type IntelligenceTab =
+  | "pending"
+  | "insights"
+  | "activity"
+  | "history"
+
+export interface IntelligencePanelProps {
+  /** When set, the panel is controlled by an outer container. */
+  activeTab?: IntelligenceTab
+  onActiveTabChange?: (tab: IntelligenceTab) => void
+  /** When true, drops the standalone <aside> wrapper so the panel can sit
+   * inside a Sheet, drawer, or other container without double-chrome. */
+  embedded?: boolean
+}
+
+export function IntelligencePanel({
+  activeTab: controlledTab,
+  onActiveTabChange,
+  embedded = false,
+}: IntelligencePanelProps = {}) {
   const {
     quote,
     versions,
@@ -116,9 +135,9 @@ export function IntelligencePanel() {
     openDrawer,
   } = useQuote()
 
-  const [activeTab, setActiveTab] = React.useState<
-    "pending" | "insights" | "activity" | "history"
-  >("pending")
+  const [internalTab, setInternalTab] = React.useState<IntelligenceTab>("pending")
+  const activeTab = controlledTab ?? internalTab
+  const setActiveTab = onActiveTabChange ?? setInternalTab
 
   // Parser state
   const [input, setInput] = React.useState("")
@@ -248,8 +267,13 @@ export function IntelligencePanel() {
     .filter((a) => a.impact.direction === "save")
     .reduce((s, a) => s + a.impact.amount, 0)
 
+  const Wrapper = embedded ? "div" : "aside"
+  const wrapperClass = embedded
+    ? "bg-surface flex h-full w-full flex-col"
+    : "bg-surface border-border/70 flex h-full w-[400px] shrink-0 flex-col border-l"
+
   return (
-    <aside className="bg-surface border-border/70 flex h-full w-[400px] shrink-0 flex-col border-l">
+    <Wrapper className={wrapperClass}>
       {/* Header */}
       <div className="border-border/70 flex items-start justify-between gap-2 border-b px-4 pt-3.5 pb-3">
         <div>
@@ -288,8 +312,11 @@ export function IntelligencePanel() {
         analyzing={analyzing}
       />
 
-      {/* Tabs */}
-      <div className="border-border/70 flex items-stretch gap-0 border-b px-2">
+      {/* Tabs — pill + brass left rail when active. */}
+      <div
+        role="tablist"
+        className="border-border/70 flex items-stretch gap-1 border-b px-2 py-1.5"
+      >
         {(
           [
             ["pending", "Pending", totalPending],
@@ -297,30 +324,41 @@ export function IntelligencePanel() {
             ["activity", "Activity", activity.length],
             ["history", "History", versions.length],
           ] as const
-        ).map(([key, label, count]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setActiveTab(key)}
-            data-active={activeTab === key ? "" : undefined}
-            className={cn(
-              "text-muted-foreground hover:text-foreground relative flex items-center gap-1.5 px-2.5 py-2 text-[12px] font-medium transition-colors",
-              "data-[active]:text-foreground"
-            )}
-          >
-            {label}
-            <span className="text-muted-foreground/60 font-mono text-[10.5px]">
-              {count}
-            </span>
-            <span
-              aria-hidden
+        ).map(([key, label, count]) => {
+          const isActive = activeTab === key
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setActiveTab(key)}
               className={cn(
-                "bg-[color-mix(in_oklch,var(--gold)_70%,var(--ink))] absolute inset-x-2 -bottom-px h-px scale-x-0 transition-transform",
-                activeTab === key && "scale-x-100"
+                "relative inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors outline-none",
+                "focus-visible:ring-3 focus-visible:ring-ring/40",
+                isActive
+                  ? "bg-surface-2 text-foreground pl-3.5"
+                  : "text-muted-foreground hover:text-foreground hover:bg-surface-2/50"
               )}
-            />
-          </button>
-        ))}
+            >
+              {isActive && (
+                <span
+                  aria-hidden
+                  className="bg-[color-mix(in_oklch,var(--gold)_60%,var(--ink))] absolute top-1.5 bottom-1.5 left-1 w-[2px] rounded-full"
+                />
+              )}
+              {label}
+              <span
+                className={cn(
+                  "font-mono text-[10.5px]",
+                  isActive ? "text-foreground/70" : "text-muted-foreground/60"
+                )}
+              >
+                {count}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Tab content */}
@@ -557,7 +595,7 @@ export function IntelligencePanel() {
           <ChevronRight />
         </Button>
       </div>
-    </aside>
+    </Wrapper>
   )
 }
 
