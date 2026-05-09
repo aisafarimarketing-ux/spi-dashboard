@@ -1,0 +1,30 @@
+// SPI database schema.
+//
+// Single source of truth for all persistent data. Generated client lives at
+// node_modules/@prisma/client and is consumed via lib/db.ts.
+//
+// Prisma 7 note: connection URL is no longer kept in this file. It lives in
+// prisma.config.ts and is handed to the client via a driver adapter. The
+// schema only declares the data shape and which provider's SQL dialect to
+// generate against.
+//
+// Models will be added unit by unit:
+//   - 1.2  Operator, User
+//   - 1.3  Quote (root)
+//   - 1.4  Guest, RoomAssignment, ItineraryDay, ParkVisit, CostLine
+//   - 1.5  Version, ActivityEntry, MemoryObservation, AuditLog
+//   - 1.6  Property (catalog)
+//   - 1.12 OperatorSettings
+//
+// Convention: every business table carries `operatorId` so multi-tenancy is
+// enforced at the row level. Server actions filter by operatorId from
+// Clerk's auth().orgId — the database never sees a query that doesn't
+// scope to one operator.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}

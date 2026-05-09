@@ -197,3 +197,11 @@ _Append-only log of significant direction changes._
 - **2026-05-09 · Foundation laid.** Reframed from "compete with Wetu" to
   "build what operators would build themselves." Defined seven pillars.
   Set Phase 0 as shipped and Phase 1 as next.
+
+- **2026-05-09 · Stack chosen (Unit 1.0 done).** GitHub + Railway + Clerk
+  + Prisma. Skipped Vercel (Railway hosts Next), Neon (Railway has
+  Postgres), Auth.js (Clerk has Organizations + Memberships built-in,
+  maps directly to our Operator + User concept). Net effect: zero new
+  vendor relationships, zero new monthly cost beyond what's already
+  paid, and Phase 2 unit 2.3 (multi-user inside an operator) shortens
+  significantly because Clerk handles invites + roles for free.

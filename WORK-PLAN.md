@@ -9,12 +9,19 @@ before starting the next. We don't open multiple fronts.
 
 ## Current focus
 
-> **Next up: Unit 1.0 — Pick the database + hosting stack.**
-> One decision (Neon + Drizzle on Vercel _vs_ self-hosted Postgres _vs_
-> Supabase) unblocks the entire Phase 1 chain. No code until this is
-> chosen.
+> **Next up: Unit 1.2 — Operator + User Prisma models.**
+> Schema for the multi-tenancy spine: Operator (Clerk org → our row),
+> User (Clerk user → our row, scoped by operator). Seed inserts
+> Tamarind Safaris + Sarah Müller so dev has data to read against.
 
-Last completed: Phase 0 (prototype) shipped 2026-05-09.
+Last completed:
+- Unit 1.0 — stack picked (2026-05-09)
+- Unit 1.1 — Prisma scaffolded, prisma.config.ts, lib/db.ts, db-check
+  smoke test, npm db:* scripts, .env.example (2026-05-09)
+
+User action pending: spin up a Railway Postgres instance and put the
+connection string into `.env.local` as `DATABASE_URL`. After that
+`npm run db:check` should print the Postgres version.
 
 ---
 
@@ -40,19 +47,22 @@ _Goal: SPI survives a refresh and runs for one paying operator on staging._
 _Target: 4–6 weeks._
 
 ### 1.0 — Pick database + hosting stack (S)
-- [ ] **Done when:** one decision recorded under "Decisions" in
+- [x] **Done when:** one decision recorded under "Decisions" in
   ROADMAP.md naming the database, ORM, hosting, and auth provider
 - **Unblocks:** every other Phase 1 unit
-- **Notes:** Default recommendation is **Neon Postgres + Drizzle ORM +
-  Vercel + NextAuth (Auth.js)** — all serverless-friendly, zero ops, free
-  tier covers alpha. Decide and lock before writing code.
+- **Decided 2026-05-09:** GitHub + Railway (Next + Postgres) + Clerk
+  (auth + Organizations) + Prisma (ORM). Skipped Vercel, Neon, Auth.js.
 
-### 1.1 — Install + configure database tooling (S)
-- [ ] **Done when:** `drizzle.config.ts`, connection helper, env var
-  documented in `.env.example`, smoke-test script connects to a fresh
-  database and creates one row
+### 1.1 — Install + configure Prisma + Railway Postgres (S)
+- [x] **Done when:** `prisma/schema.prisma` with Postgres provider,
+  `lib/db.ts` Prisma client singleton, `.env.example` with
+  `DATABASE_URL`, `scripts/db-check.ts` smoke-test script that runs
+  cleanly once user supplies a Railway DB URL, npm scripts
+  (`db:generate`, `db:migrate`, `db:studio`, `db:seed`, `db:check`)
 - **Unblocks:** 1.2–1.5
-- **Notes:** No schema yet. This unit is plumbing only.
+- **Notes:** No schema models yet. This unit is plumbing only.
+  `prisma generate` succeeds without a live DB; `prisma migrate dev`
+  needs the URL. User adds DATABASE_URL when ready to spin up Railway DB.
 
 ### 1.2 — Schema: Operator + User (M)
 - [ ] **Done when:** Drizzle schema for `operators` and `users` tables
@@ -92,12 +102,17 @@ _Target: 4–6 weeks._
 - **Notes:** 50 not 200 for the seed — quality over quantity for the
   alpha. Add more later when an operator asks.
 
-### 1.7 — NextAuth (Auth.js) with operator-scoped sessions (L)
-- [ ] **Done when:** sign-in via email magic link works, session contains
-  `userId` and `operatorId`, protected routes redirect to sign-in,
-  middleware injects `operatorId` into every server action
+### 1.7 — Clerk Organizations + operator-scoped sessions (M)
+- [ ] **Done when:** Clerk `<ClerkProvider>` mounted, sign-in/sign-up
+  routes work, middleware reads `auth().orgId` and rejects requests with
+  no org, helper resolves `clerkOrgId → operatorId` and exposes a
+  `requireOperator()` server-side helper, sample protected route returns
+  the operator name
 - **Unblocks:** 1.8 (server actions that filter by operator)
-- **Notes:** No password auth. Magic link = simpler + safer for alpha.
+- **Notes:** Clerk's Organizations replaces what we'd build with
+  Auth.js + custom multi-tenancy. Confirm Clerk plan has Organizations
+  enabled before starting. Magic link + email are configured in Clerk
+  dashboard, not in code.
 
 ### 1.8 — Replace QuoteProvider in-memory state with server actions (L)
 - [ ] **Done when:** every mutation in QuoteProvider goes through a
