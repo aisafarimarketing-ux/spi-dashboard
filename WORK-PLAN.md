@@ -9,19 +9,24 @@ before starting the next. We don't open multiple fronts.
 
 ## Current focus
 
-> **Next up: Unit 1.2 — Operator + User Prisma models.**
-> Schema for the multi-tenancy spine: Operator (Clerk org → our row),
-> User (Clerk user → our row, scoped by operator). Seed inserts
-> Tamarind Safaris + Sarah Müller so dev has data to read against.
+> **Next up: Unit 1.2 migration run + Unit 1.3 — Quote root schema.**
+> The Operator + User schema is code-complete and type-checked. Once
+> `DATABASE_URL` (Supabase direct URL, port 5432) is in `.env.local`,
+> running `npm run db:migrate -- --name init_operator_user` applies
+> it, and `npm run db:seed` writes the Tamarind + Sarah rows.
 
 Last completed:
-- Unit 1.0 — stack picked (2026-05-09)
+- Unit 1.0 — stack picked: GitHub + Railway + Supabase + Clerk + Prisma (2026-05-09)
 - Unit 1.1 — Prisma scaffolded, prisma.config.ts, lib/db.ts, db-check
   smoke test, npm db:* scripts, .env.example (2026-05-09)
+- Unit 1.2 — Operator + User Prisma models + idempotent seed script
+  (code-complete 2026-05-09; awaiting migrate run)
 
-User action pending: spin up a Railway Postgres instance and put the
-connection string into `.env.local` as `DATABASE_URL`. After that
-`npm run db:check` should print the Postgres version.
+User action pending: grab the Supabase project's direct Postgres URL
+(Settings → Database → Connection string → URI on port 5432) and put
+it into `.env.local` as `DATABASE_URL`. Then run `npm run db:check`
+followed by `npm run db:migrate -- --name init_operator_user` and
+`npm run db:seed`. Once those land, Unit 1.2 flips to `[x]`.
 
 ---
 

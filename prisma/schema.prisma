@@ -9,7 +9,7 @@
 // generate against.
 //
 // Models will be added unit by unit:
-//   - 1.2  Operator, User
+//   - 1.2  Operator, User                          ← this unit
 //   - 1.3  Quote (root)
 //   - 1.4  Guest, RoomAssignment, ItineraryDay, ParkVisit, CostLine
 //   - 1.5  Version, ActivityEntry, MemoryObservation, AuditLog
@@ -27,4 +27,69 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ── Identity & multi-tenancy spine ────────────────────────────────────────
+//
+// Operator = a tour operator workspace. One row per company.
+// Mirrors a Clerk Organization 1:1 — `clerkOrgId` is the unique reference.
+// Every business row in every other table foreign-keys back here so the
+// database refuses cross-operator joins by construction.
+//
+// User = a person who logs in. Always belongs to exactly one Operator.
+// Mirrors a Clerk User; `clerkUserId` is the unique reference. Roles come
+// from Clerk Organization Memberships but we cache the role here so server
+// actions can authorize without a Clerk round-trip on every request.
+
+enum UserRole {
+  agent      // builds quotes, can edit guests/rooming/costs
+  senior     // agent + can override pricing categories, approve discounts
+  admin      // senior + can invite users, change operator settings
+  accounting // read-only on quotes; full access to financial reports
+}
+
+model Operator {
+  id          String   @id @default(cuid())
+  /// Clerk Organization id — `org_xxx`. Used to resolve the active operator
+  /// from `auth().orgId` on every server action.
+  clerkOrgId  String   @unique
+  /// Human-readable display name shown in the cockpit and on client-facing
+  /// proposals.
+  name        String
+  /// Short slug used in white-label URLs like `quote.{slug}.com/q/...`.
+  /// Optional during alpha; required once Phase 2 ships the client portal.
+  slug        String?  @unique
+  /// Operating region — informational, drives default park-fee tables.
+  region      String   @default("Tanzania")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+
+  @@map("operators")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  /// Clerk User id — `user_xxx`. Resolved from `auth().userId`.
+  clerkUserId String   @unique
+  /// Display name — denormalized from Clerk for fast rendering.
+  name        String
+  /// Primary email — denormalized from Clerk. Synced on each session.
+  email       String
+  /// Cached membership role from Clerk Organization Memberships.
+  /// Authoritative role still lives in Clerk; this is for fast authz checks.
+  role        UserRole @default(agent)
+
+  operatorId  String
+  operator    Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  /// One operator can't have two rows for the same Clerk user.
+  @@unique([operatorId, clerkUserId])
+  @@index([operatorId])
+  @@map("users")
 }

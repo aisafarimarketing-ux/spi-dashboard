@@ -205,3 +205,11 @@ _Append-only log of significant direction changes._
   vendor relationships, zero new monthly cost beyond what's already
   paid, and Phase 2 unit 2.3 (multi-user inside an operator) shortens
   significantly because Clerk handles invites + roles for free.
+
+- **2026-05-09 · Postgres host swapped to Supabase.** User already pays
+  for Supabase from a prior project; Railway Postgres was redundant.
+  Supabase Postgres is the data layer; Railway remains the Next.js
+  compute layer; Clerk owns auth. Connection-string only change — no
+  code impact. Use the direct connection (port 5432) for both runtime
+  and migrations while we're on Railway containers; switch to pooled +
+  `directUrl` if/when we move to serverless.
