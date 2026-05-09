@@ -5,7 +5,9 @@ import * as React from "react"
 import { useToast } from "@/components/ui/toast"
 import {
   QUOTE as INITIAL_QUOTE,
+  SIDEBAR_QUOTES as INITIAL_SIDEBAR_QUOTES,
   VERSIONS as INITIAL_VERSIONS,
+  type SidebarQuote,
   type VersionEntry,
 } from "@/lib/mock"
 import {
@@ -61,6 +63,14 @@ export type DrawerState =
   | { type: "costs" }
   | null
 
+export interface CreateQuoteInput {
+  client: string
+  origin: string
+  start: string
+  end: string
+  pax: number
+}
+
 interface QuoteContextValue {
   quote: Quote
   totals: QuoteTotals
@@ -80,6 +90,12 @@ interface QuoteContextValue {
   applyParsedQuote: (next: Quote, note: string) => void
 
   preview: (next: Quote) => QuoteTotals
+
+  // ── Sidebar / multi-quote ─────────────────────────────────────────────
+  sidebarQuotes: SidebarQuote[]
+  activeQuoteId: string
+  switchToSidebarQuote: (id: string) => void
+  createQuote: (input: CreateQuoteInput) => void
 
   // ── Operational state ─────────────────────────────────────────────────
   activity: ActivityEntry[]
@@ -125,6 +141,12 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
   const [versions, setVersions] =
     React.useState<VersionEntry[]>(INITIAL_VERSIONS)
   const [drawer, setDrawer] = React.useState<DrawerState>(null)
+  const [sidebarQuotes, setSidebarQuotes] = React.useState<SidebarQuote[]>(
+    INITIAL_SIDEBAR_QUOTES
+  )
+  const [activeQuoteId, setActiveQuoteId] = React.useState<string>(
+    INITIAL_QUOTE.id
+  )
 
   const [activity, setActivity] = React.useState<ActivityEntry[]>([])
   // Lazy init keeps SSR rendering an empty string (no relative-time text)
@@ -480,6 +502,136 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
     [observe, pushActivity, toast]
   )
 
+  // ── Sidebar / multi-quote ────────────────────────────────────────────────
+  const switchToSidebarQuote = React.useCallback(
+    (id: string) => {
+      if (id === activeQuoteId) {
+        toast({
+          title: "Already viewing this quote",
+          description: id,
+          tone: "info",
+          durationMs: 1800,
+        })
+        return
+      }
+      const item = sidebarQuotes.find((s) => s.id === id)
+      if (!item) return
+
+      // Parse hints from sidebar copy: "× 6" → pax, "9 nts" → nights.
+      const paxMatch = item.title.match(/×\s*(\d+)/)
+      const nightsMatch = item.sub.match(/(\d+)\s*nt/i)
+      const newPax = paxMatch ? Number(paxMatch[1]) : quote.travel.pax
+      const newNights = nightsMatch
+        ? Number(nightsMatch[1])
+        : quote.travel.nights
+
+      const next: Quote = {
+        ...quote,
+        id: item.id,
+        reference: item.id.replace("Q-", "REF-") + "-DRAFT",
+        client: item.title,
+        status: item.status,
+        travel: {
+          ...quote.travel,
+          pax: newPax,
+          nights: newNights,
+        },
+      }
+      setQuote(next)
+      setActiveQuoteId(id)
+      pushActivity({
+        kind: "version",
+        title: `Opened ${item.title}`,
+        detail: item.id,
+      })
+      toast({
+        title: `Opened ${item.title}`,
+        description: `${item.id} · ${item.status}`,
+        tone: "success",
+      })
+    },
+    [activeQuoteId, pushActivity, quote, sidebarQuotes, toast]
+  )
+
+  const createQuote = React.useCallback(
+    (input: CreateQuoteInput) => {
+      const startMs = new Date(input.start).getTime()
+      const endMs = new Date(input.end).getTime()
+      const nights = Math.max(
+        1,
+        Math.round((endMs - startMs) / (1000 * 60 * 60 * 24))
+      )
+      // Generate a reasonable next id from existing IDs.
+      const numericIds = sidebarQuotes
+        .map((s) => Number(s.id.replace(/\D/g, "")))
+        .filter((n) => Number.isFinite(n))
+      const nextNum = numericIds.length === 0 ? 1000 : Math.max(...numericIds) + 1
+      const newId = `Q-${nextNum}`
+
+      const newSidebarItem: SidebarQuote = {
+        id: newId,
+        title: input.client,
+        sub: `New draft · ${nights} nts`,
+        status: "Draft v1",
+        pinned: false,
+        updated: "just now",
+        accent: "muted",
+      }
+
+      const fresh: Quote = {
+        id: newId,
+        reference: `${input.client.toUpperCase().replace(/\s+/g, "-")}-DRAFT`,
+        client: input.client,
+        origin: input.origin,
+        status: "Draft v1",
+        validUntil: input.end,
+        agent: quote.agent,
+        operator: quote.operator,
+        travel: {
+          start: input.start,
+          end: input.end,
+          nights,
+          pax: input.pax,
+        },
+        currency: "USD",
+        fx: { ...quote.fx, asOf: new Date().toISOString() },
+        guests: [],
+        rooms: [],
+        itinerary: [],
+        parkVisits: [],
+        costs: [],
+        marginPct: 0.22,
+      }
+
+      setSidebarQuotes((s) => [newSidebarItem, ...s])
+      setQuote(fresh)
+      setActiveQuoteId(newId)
+      // Reset versions so the new quote starts clean.
+      setVersions([
+        {
+          id: `v1-${Date.now()}`,
+          label: "v1 · current",
+          author: quote.agent.name,
+          authoredAt: "just now",
+          delta: 0,
+          note: "New quote created",
+          via: "manual",
+        },
+      ])
+      pushActivity({
+        kind: "version",
+        title: `Created ${input.client}`,
+        detail: `${newId} · ${input.pax} pax · ${nights} nts`,
+      })
+      toast({
+        title: "Quote created",
+        description: `${newId} · ${input.client}`,
+        tone: "success",
+      })
+    },
+    [pushActivity, quote.agent, quote.fx, quote.operator, sidebarQuotes, toast]
+  )
+
   const value: QuoteContextValue = {
     quote,
     totals,
@@ -494,6 +646,10 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
     applyChanges,
     applyParsedQuote,
     preview,
+    sidebarQuotes,
+    activeQuoteId,
+    switchToSidebarQuote,
+    createQuote,
     activity,
     pushActivity,
     lastSavedAt,

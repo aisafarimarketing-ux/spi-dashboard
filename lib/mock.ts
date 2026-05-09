@@ -13,7 +13,19 @@ import type {
 
 // ── Sidebar files (unchanged shape, Tanzania-flavoured copy) ──────────────
 
-export const SIDEBAR_QUOTES = [
+export type SidebarQuoteAccent = "gold" | "muted" | "success" | "warning"
+
+export interface SidebarQuote {
+  id: string
+  title: string
+  sub: string
+  status: string
+  pinned: boolean
+  updated: string
+  accent: SidebarQuoteAccent
+}
+
+export const SIDEBAR_QUOTES: SidebarQuote[] = [
   {
     id: "Q-2841",
     title: "Henderson Family",

@@ -1,3 +1,5 @@
+"use client"
+
 import {
   ArrowRight,
   Binoculars,
@@ -12,7 +14,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardAction } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import { ITINERARY, QUOTE } from "@/lib/mock"
+import { openPlaceholder } from "./placeholder-modal"
+import { useQuote } from "./quote-provider"
 
 const regionTone: Record<string, string> = {
   Arusha: "text-[color-mix(in_oklch,var(--info)_55%,var(--ink))]",
@@ -46,6 +49,47 @@ const formatDayDate = (iso: string) => {
 }
 
 export function ItineraryTimeline() {
+  const { quote } = useQuote()
+  const itinerary = quote.itinerary
+
+  if (itinerary.length === 0) {
+    return (
+      <Card className="card-lift overflow-hidden">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Map className="text-muted-foreground size-3.5" />
+            <CardTitle>Itinerary</CardTitle>
+            <Badge variant="muted" size="sm" className="font-mono">
+              empty
+            </Badge>
+          </div>
+        </CardHeader>
+        <div className="px-4 pb-4">
+          <div className="border-border/60 text-muted-foreground rounded-lg border border-dashed px-4 py-6 text-center text-[12px]">
+            No itinerary days yet. Open Tell-SPI on the right or click below to
+            queue an itinerary builder.
+            <div className="mt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  openPlaceholder({
+                    title: "Itinerary builder",
+                    description:
+                      "Drag-and-drop day planning is queued for V1. Until then, parsed actions from Tell-SPI populate days directly.",
+                  })
+                }
+                className="cursor-pointer"
+              >
+                Add a day
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
+    )
+  }
+
   return (
     <Card className="card-lift overflow-hidden">
       <CardHeader>
@@ -53,15 +97,37 @@ export function ItineraryTimeline() {
           <Map className="text-muted-foreground size-3.5" />
           <CardTitle>Itinerary</CardTitle>
           <Badge variant="muted" size="sm" className="font-mono">
-            {QUOTE.travel.nights}n · {ITINERARY.length} stops
+            {quote.travel.nights}n · {itinerary.length} stops
           </Badge>
         </div>
         <CardAction>
-          <Button variant="ghost" size="xs">
+          <Button
+            variant="ghost"
+            size="xs"
+            className="cursor-pointer"
+            onClick={() =>
+              openPlaceholder({
+                title: "Day grid view",
+                description:
+                  "A spreadsheet-style day grid for bulk editing is queued for V1. The timeline below stays the source of truth.",
+              })
+            }
+          >
             <Calendar />
             Day grid
           </Button>
-          <Button variant="ghost" size="xs">
+          <Button
+            variant="ghost"
+            size="xs"
+            className="cursor-pointer"
+            onClick={() =>
+              openPlaceholder({
+                title: "Map view",
+                description:
+                  "Geographic visualisation of the itinerary on a regional map is queued for V1.",
+              })
+            }
+          >
             <Binoculars />
             Map view
           </Button>
@@ -70,13 +136,13 @@ export function ItineraryTimeline() {
 
       <div className="scrollbar-thin overflow-x-auto">
         <ol className="flex min-w-full items-stretch gap-3 px-4 pt-1 pb-4">
-          {ITINERARY.map((d, idx) => {
-            const next = ITINERARY[idx + 1]
+          {itinerary.map((d, idx) => {
+            const next = itinerary[idx + 1]
             const Mi = d.movement
               ? movementIcon[d.movement.mode]
               : null
             const date = formatDayDate(d.date)
-            const isLast = idx === ITINERARY.length - 1
+            const isLast = idx === itinerary.length - 1
 
             return (
               <li
@@ -84,7 +150,15 @@ export function ItineraryTimeline() {
                 className="relative flex shrink-0 items-stretch gap-3"
                 style={{ minWidth: 220 }}
               >
-                <div className="border-border/70 bg-surface flex w-[220px] flex-col rounded-lg border p-3 transition-shadow hover:shadow-[0_2px_10px_rgba(60,40,20,0.06)]">
+                <button
+                  type="button"
+                  onClick={() =>
+                    openPlaceholder({
+                      title: `Day ${d.day} · ${d.title}`,
+                      description: `Inline editing for ${d.property?.name ?? d.title} (region ${d.region}) is queued for V1. For now, route changes through Tell-SPI on the right.`,
+                    })
+                  }
+                  className="border-border/70 bg-surface hover:bg-surface-2/40 hover:border-border focus-visible:border-ring focus-visible:ring-ring/40 focus-visible:ring-3 group/day flex w-[220px] cursor-pointer flex-col rounded-lg border p-3 text-left outline-none transition-all hover:shadow-[0_2px_10px_rgba(60,40,20,0.06)]">
                   {/* Day pill row */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-baseline gap-1.5">
@@ -174,7 +248,7 @@ export function ItineraryTimeline() {
                       {d.movement?.operator ?? d.property?.tier ?? ""}
                     </span>
                   </div>
-                </div>
+                </button>
 
                 {/* Connector */}
                 {!isLast && (

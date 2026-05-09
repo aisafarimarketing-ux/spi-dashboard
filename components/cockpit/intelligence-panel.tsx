@@ -547,7 +547,12 @@ export function IntelligencePanel() {
             </div>
           </div>
         </div>
-        <Button size="sm" variant="outline">
+        <Button
+          size="sm"
+          variant="outline"
+          className="cursor-pointer"
+          onClick={() => setActiveTab("pending")}
+        >
           Review all
           <ChevronRight />
         </Button>

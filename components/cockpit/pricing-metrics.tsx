@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import {
   AlertTriangle,
   CircleDollarSign,
@@ -16,9 +17,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { aggregateByCategory } from "@/lib/pricing-engine"
 import { useQuote } from "./quote-provider"
+import { WarningsDrawer } from "./warnings-drawer"
 
 const formatUSD = (n: number, opts: Intl.NumberFormatOptions = {}) =>
   new Intl.NumberFormat("en-US", {
@@ -54,6 +61,7 @@ const categoryDisplayName: Record<string, string> = {
 
 export function PricingMetrics() {
   const { quote, totals, openDrawer } = useQuote()
+  const [warningsOpen, setWarningsOpen] = React.useState(false)
   const breakdown = aggregateByCategory(quote)
   const errorCount = totals.warnings.filter((w) => w.level === "error").length
   const warnCount = totals.warnings.filter((w) => w.level === "warning").length
@@ -89,17 +97,23 @@ export function PricingMetrics() {
             label="Per pax"
             value={formatUSD(totals.perPax)}
             sub={`${quote.travel.pax} pax`}
+            onClick={() => openDrawer({ type: "guest" })}
+            hint="Open guests"
           />
           <Kpi
             label="Per night"
             value={formatUSD(totals.perNight)}
             sub={`${quote.travel.nights}n`}
+            onClick={() => openDrawer({ type: "costs" })}
+            hint="Open costs"
           />
           <Kpi
             label="Margin"
             value={`${totals.marginPct.toFixed(1)}%`}
             sub={formatUSD(totals.margin)}
             tone="success"
+            onClick={() => openDrawer({ type: "costs" })}
+            hint="Edit margin"
           />
         </div>
 
@@ -108,13 +122,17 @@ export function PricingMetrics() {
             label="Net cost"
             value={formatUSD(totals.netCost)}
             sub="pre-VAT"
+            onClick={() => openDrawer({ type: "costs" })}
+            hint="Open costs"
           />
           <Kpi
             label="VAT"
             value={formatUSD(totals.vat)}
             sub={`on ${formatUSD(totals.vatBreakdown.vatable)}`}
+            onClick={() => openDrawer({ type: "costs" })}
+            hint="Open costs"
           />
-          <Kpi
+          <KpiPopover
             label="Confidence"
             value={`${Math.round(totals.confidence * 100)}%`}
             sub={
@@ -129,6 +147,9 @@ export function PricingMetrics() {
                   ? "warning"
                   : "success"
             }
+            confidence={totals.confidence}
+            errorCount={errorCount}
+            warnCount={warnCount}
           />
         </div>
 
@@ -181,7 +202,11 @@ export function PricingMetrics() {
         </div>
 
         {(errorCount > 0 || warnCount > 0) && (
-          <div className="border-border/60 bg-[color-mix(in_oklch,var(--warning)_8%,var(--surface))] flex items-start gap-2 rounded-md border px-2.5 py-2">
+          <button
+            type="button"
+            onClick={() => setWarningsOpen(true)}
+            className="border-border/60 bg-[color-mix(in_oklch,var(--warning)_8%,var(--surface))] hover:bg-[color-mix(in_oklch,var(--warning)_14%,var(--surface))] focus-visible:border-ring focus-visible:ring-ring/40 focus-visible:ring-3 group flex w-full cursor-pointer items-start gap-2 rounded-md border px-2.5 py-2 text-left transition-colors outline-none"
+          >
             <AlertTriangle className="text-[color-mix(in_oklch,var(--warning)_55%,var(--ink))] mt-0.5 size-3.5 shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="text-foreground/85 text-[11.5px] font-medium leading-tight">
@@ -206,7 +231,10 @@ export function PricingMetrics() {
                 )}
               </ul>
             </div>
-          </div>
+            <span className="text-muted-foreground/70 group-hover:text-foreground/70 self-center text-[10.5px] transition-colors">
+              View →
+            </span>
+          </button>
         )}
 
         <div className="border-border/60 mt-auto flex items-center gap-2 rounded-md border border-dashed px-2.5 py-1.5">
@@ -223,6 +251,8 @@ export function PricingMetrics() {
           </p>
         </div>
       </CardContent>
+
+      <WarningsDrawer open={warningsOpen} onOpenChange={setWarningsOpen} />
     </Card>
   )
 }
@@ -232,11 +262,15 @@ function Kpi({
   value,
   sub,
   tone,
+  onClick,
+  hint,
 }: {
   label: string
   value: string
   sub: string
   tone?: "success" | "warning" | "destructive"
+  onClick?: () => void
+  hint?: string
 }) {
   const valueTone =
     tone === "success"
@@ -247,8 +281,18 @@ function Kpi({
           ? "text-[color-mix(in_oklch,var(--destructive)_55%,var(--ink))]"
           : ""
 
+  const Comp = onClick ? "button" : "div"
   return (
-    <div className="border-border/70 bg-surface/60 rounded-lg border px-2.5 py-2">
+    <Comp
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      title={hint}
+      className={cn(
+        "border-border/70 bg-surface/60 group/kpi rounded-lg border px-2.5 py-2 text-left transition-all",
+        onClick &&
+          "hover:border-border hover:bg-surface focus-visible:border-ring focus-visible:ring-ring/40 focus-visible:ring-3 cursor-pointer outline-none"
+      )}
+    >
       <div className="text-muted-foreground text-[10px] tracking-[0.08em] uppercase">
         {label}
       </div>
@@ -263,6 +307,83 @@ function Kpi({
       <div className="text-muted-foreground/80 mt-1 font-mono text-[10.5px]">
         {sub}
       </div>
-    </div>
+    </Comp>
+  )
+}
+
+function KpiPopover({
+  label,
+  value,
+  sub,
+  tone,
+  confidence,
+  errorCount,
+  warnCount,
+}: {
+  label: string
+  value: string
+  sub: string
+  tone?: "success" | "warning" | "destructive"
+  confidence: number
+  errorCount: number
+  warnCount: number
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "border-border/70 bg-surface/60 hover:border-border hover:bg-surface focus-visible:border-ring focus-visible:ring-ring/40 focus-visible:ring-3 group/kpi cursor-pointer rounded-lg border px-2.5 py-2 text-left outline-none transition-all"
+          )}
+        >
+          <div className="text-muted-foreground text-[10px] tracking-[0.08em] uppercase">
+            {label}
+          </div>
+          <div
+            className={cn(
+              "font-display text-foreground mt-0.5 text-[20px] leading-none tracking-tight",
+              tone === "success" &&
+                "text-[color-mix(in_oklch,var(--success)_50%,var(--ink))]",
+              tone === "warning" &&
+                "text-[color-mix(in_oklch,var(--warning)_55%,var(--ink))]",
+              tone === "destructive" &&
+                "text-[color-mix(in_oklch,var(--destructive)_55%,var(--ink))]"
+            )}
+          >
+            {value}
+          </div>
+          <div className="text-muted-foreground/80 mt-1 font-mono text-[10.5px]">
+            {sub}
+          </div>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72">
+        <div className="space-y-2">
+          <div>
+            <h3 className="text-foreground/85 text-[11.5px] font-semibold tracking-[0.06em] uppercase">
+              Confidence score
+            </h3>
+            <p className="text-muted-foreground mt-1 text-[11.5px] leading-snug">
+              Engine confidence is a 0–100 score derived from validator flags
+              and per-room policy strength. Errors deduct 15pts, warnings 5pts,
+              info 1pt. Low room-policy confidence subtracts further.
+            </p>
+          </div>
+          <div className="border-border/60 bg-surface-2/40 rounded-md border px-2.5 py-2 text-[11.5px]">
+            <div className="text-muted-foreground/80 font-mono">
+              Score: {Math.round(confidence * 100)}%
+            </div>
+            <div className="text-muted-foreground/80 font-mono">
+              Flags: {errorCount} err · {warnCount} warn
+            </div>
+          </div>
+          <p className="text-muted-foreground text-[10.5px] italic leading-snug">
+            Click the warnings card below to inspect each flag and jump to the
+            right editor.
+          </p>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
